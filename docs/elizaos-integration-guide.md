@@ -125,21 +125,62 @@ The agent creation interface features a two-column layout:
 
 #### Agent Configuration Fields
 
-The interface focuses on four primary input fields:
+The agent creation interface now requires and processes the following fields:
 
-1. **Name**: The display name for the agent (e.g., "AlphaTrader")
-2. **Ticker**: A unique 5-character identifier for the agent (automatically converted to uppercase)
-3. **Description**: A brief summary of the agent's purpose and capabilities
-4. **Personality**: A comprehensive field where users describe the agent's characteristics, trading style, expertise, and behavior
+1. **Required Base Fields**:
+   - `name`: The display name for the agent
+   - `description`: A brief summary of the agent's purpose
+   - `personality`: A comprehensive description of the agent's characteristics
 
-#### Personality Field
+2. **Required Character Fields** (automatically generated from personality):
+   - `lore`: Array of background statements about the agent
+   - `topics`: Array of subjects the agent is knowledgeable about
+   - `adjectives`: Array of character traits
+   - `messageExamples`: Array of example interactions
+   - `postExamples`: Array of example social media posts
 
-The personality field is the core of agent customization. Users are encouraged to provide rich, descriptive text about their desired agent characteristics. The backend system parses this field to generate the detailed character configuration.
+3. **Memory Settings**:
+   - `enableRagKnowledge`: Enable RAG-based knowledge retrieval
+   - `enableLoreMemory`: Enable character lore memory
+   - `enableDescriptionMemory`: Enable description-based memory
+   - `enableDocumentsMemory`: Enable document-based memory
 
-Example personality description:
+#### Personality Parsing
+
+The system automatically parses the personality text to generate required character fields:
+
+```typescript
+const parsedCharacter = {
+  lore: ["A trading agent focused on market analysis"],
+  topics: ["trading", "market analysis", "investment strategies"],
+  adjectives: ["analytical", "data-driven", "strategic"],
+  messageExamples: [[
+    {
+      user: "user1",
+      content: { text: "What's your trading strategy?" },
+      response: "As [AgentName], I [Description]"
+    }
+  ]],
+  postExamples: [
+    "Market analysis update: [Analysis]",
+    "Trading insight: [Strategy]"
+  ]
+};
 ```
-Analytical and data-driven with a focus on technical analysis. Provides clear entry and exit points for trades. Risk-conscious but willing to take calculated risks when the reward potential is high. Specializes in cryptocurrency markets with emphasis on Bitcoin and major altcoins.
+
+#### Example Personality Text
+
 ```
+Analytical and data-driven with a focus on technical analysis. 
+Provides clear entry and exit points for trades. 
+Risk-conscious but willing to take calculated risks when the reward potential is high. 
+Specializes in cryptocurrency markets with emphasis on Bitcoin and major altcoins.
+```
+
+This text will be automatically parsed to extract:
+- Topics (e.g., "technical analysis", "cryptocurrency markets")
+- Adjectives (e.g., "analytical", "data-driven", "risk-conscious")
+- Lore (remaining contextual statements)
 
 #### Client Integration
 

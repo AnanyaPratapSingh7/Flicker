@@ -246,30 +246,70 @@ export class ElizaIntegrationService extends EventEmitter {
   /**
    * Create an agent using a character template
    */
-  async createAgent(templateName: string, name?: string, description?: string): Promise<string> {
+  async createAgent(templateName: string, name?: string, description?: string, customCharacter?: any): Promise<string> {
     try {
-      // Load the character template
-      const templatePath = path.join(this.characterPath, `${templateName}.character.json`);
-      console.log(`Looking for character template at: ${templatePath}`);
-      console.log(`Template exists: ${fs.existsSync(templatePath)}`);
+      console.log('createAgent called with:');
+      console.log('- templateName:', templateName);
+      console.log('- name:', name);
+      console.log('- description:', description);
+      console.log('- customCharacter:', JSON.stringify(customCharacter, null, 2));
       
-      if (!fs.existsSync(templatePath)) {
-        console.log(`Available files in ${this.characterPath}:`, fs.readdirSync(this.characterPath));
-        throw new Error(`Character template not found: ${templateName}`);
+      let character;
+      
+      // If a custom character configuration is provided, use it as the base
+      if (customCharacter) {
+        console.log('Using provided custom character configuration');
+        character = {
+          // Set required defaults
+          modelProvider: customCharacter.modelProvider || 'openrouter',
+          settings: {
+            model: customCharacter.settings?.model || 'openai/gpt-4',
+            ...customCharacter.settings
+          },
+          // Use the custom character configuration
+          ...customCharacter,
+          // Ensure name and description are set
+          name: name || customCharacter.name,
+          description: description || customCharacter.description
+        };
+        
+        // Ensure required arrays exist
+        character.clients = character.clients || ['direct'];
+        character.plugins = character.plugins || [];
+        character.style = character.style || {
+          all: [],
+          chat: [],
+          post: []
+        };
+        
+        console.log('Final custom character configuration:', JSON.stringify(character, null, 2));
+      } else {
+        // Only load template if no custom character is provided
+        const templatePath = path.join(this.characterPath, `${templateName}.character.json`);
+        console.log(`Looking for character template at: ${templatePath}`);
+        
+        if (!fs.existsSync(templatePath)) {
+          console.log(`Available files in ${this.characterPath}:`, fs.readdirSync(this.characterPath));
+          throw new Error(`Character template not found: ${templateName}`);
+        }
+        
+        character = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
+        console.log(`Loaded character template: ${templateName}`);
+        
+        // Override name and description if provided
+        if (name) character.name = name;
+        if (description) character.description = description;
       }
       
-      const character = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
-      console.log(`Loaded character template: ${templateName}`);
-      
-      // Override name and description if provided
-      if (name) character.name = name;
-      if (description) character.description = description;
-      
       console.log(`Sending request to ElizaOS API at: ${this.elizaApiBaseUrl}/agent/start`);
-      // Create the agent via API using the correct endpoint and payload structure
+      console.log('Request payload:', JSON.stringify({ characterJson: character }, null, 2));
+      
+      // Create the agent via API
       const response = await axios.post(`${this.elizaApiBaseUrl}/agent/start`, {
         characterJson: character
       });
+      
+      console.log('ElizaOS API response:', JSON.stringify(response.data, null, 2));
       
       const agentId = response.data.id;
       

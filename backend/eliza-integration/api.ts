@@ -66,13 +66,21 @@ app.get('/api/eliza/status', async (req, res) => {
  */
 app.post('/api/agents', async (req, res) => {
   try {
-    const { templateName, name, description } = req.body;
+    const { templateName, name, description, character } = req.body;
+    
+    // Add debug logging
+    console.log('Creating agent with:');
+    console.log('- templateName:', templateName);
+    console.log('- name:', name);
+    console.log('- description:', description);
+    console.log('- character:', JSON.stringify(character, null, 2));
     
     if (!templateName) {
       return res.status(400).json({ error: 'Template name is required' });
     }
     
-    const agentId = await elizaService.createAgent(templateName, name, description);
+    // Pass the custom character configuration to the createAgent method if provided
+    const agentId = await elizaService.createAgent(templateName, name, description, character);
     res.status(201).json({ agentId });
   } catch (error) {
     console.error('Failed to create agent:', error);

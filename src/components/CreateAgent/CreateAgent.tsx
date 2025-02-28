@@ -327,25 +327,50 @@ const CreateAgent: React.FC = () => {
       // Prepare the Eliza character file format
       const elizaCharacterConfig = {
         name: agentConfig.name,
-        modelProvider: 'openrouter',
+        modelProvider: agentConfig.modelProvider || 'openrouter',
         clients: activeClients,
         plugins: agentConfig.plugins,
         settings: {
           ragKnowledge: agentConfig.memorySettings.enableRagKnowledge,
           secrets: {},
-          model: 'openai/gpt-4o-mini'
+          model: agentConfig.model || 'openai/gpt-4o-mini'
         },
+        // Add system prompt based on personality
+        system: `You are ${agentConfig.name}. ${agentConfig.description}\n\nPersonality: ${agentConfig.personality}`,
+        // Parse personality into structured components
+        ...parsePersonalityToBio(agentConfig.personality),
+        // Add character bio
         bio: [
-          `Trading agent specializing in ${agentConfig.ticker || "crypto"} markets`,
-          agentConfig.description
+          agentConfig.description,
+          ...agentConfig.personality.split('\n').filter(line => line.trim())
+        ],
+        // Required message examples
+        messageExamples: [[
+          {
+            user: "user1",
+            content: { text: "What's your trading strategy?" },
+            response: `As ${agentConfig.name}, I ${agentConfig.description}`
+          }
+        ]],
+        // Required post examples
+        postExamples: [
+          `${agentConfig.name} analyzing market trends: ${agentConfig.description}`,
+          `Trading update from ${agentConfig.name}: Market analysis based on ${agentConfig.personality.split('\n')[0] || 'technical analysis'}`
         ],
         style: {
           all: [],
-          chat: [],
+          chat: agentConfig.personality.split('\n')
+            .filter(line => line.trim())
+            .map(line => line.trim()),
           post: []
         },
-        // Parse personality into bio elements
-        ...parsePersonalityToBio(agentConfig.personality)
+        // Add memory settings
+        memorySettings: {
+          enableRagKnowledge: agentConfig.memorySettings.enableRagKnowledge,
+          enableLoreMemory: agentConfig.memorySettings.enableLoreMemory,
+          enableDescriptionMemory: agentConfig.memorySettings.enableDescriptionMemory,
+          enableDocumentsMemory: agentConfig.memorySettings.enableDocumentsMemory
+        }
       };
       
       // Send the request in the format expected by the backend API
@@ -374,7 +399,14 @@ const CreateAgent: React.FC = () => {
   
   // Helper function to parse personality text into bio elements
   const parsePersonalityToBio = (personality: string) => {
-    if (!personality) return { lore: [], topics: [], adjectives: [] };
+    if (!personality) {
+      // Return default values for required fields if no personality is provided
+      return {
+        lore: ["A trading agent focused on market analysis"],
+        topics: ["trading", "market analysis", "investment strategies"],
+        adjectives: ["analytical", "data-driven", "strategic"]
+      };
+    }
     
     // Split by periods and filter out empty strings
     const sentences = personality.split('.').filter(s => s.trim().length > 0);
@@ -404,6 +436,11 @@ const CreateAgent: React.FC = () => {
       }
     });
     
+    // If no topics were found, add default trading topics
+    if (topics.length === 0) {
+      topics.push("trading", "market analysis", "investment strategies");
+    }
+    
     // Extract potential traits/adjectives
     const adjectiveKeywords = [
       'is', 'approach is', 'style is', 'personality is', 'character is',
@@ -428,6 +465,11 @@ const CreateAgent: React.FC = () => {
       }
     });
     
+    // If no adjectives were found, add default trading-related adjectives
+    if (adjectives.length === 0) {
+      adjectives.push("analytical", "data-driven", "strategic");
+    }
+    
     // Remaining sentences become lore
     const lore = sentences
       .filter(sentence => {
@@ -445,6 +487,11 @@ const CreateAgent: React.FC = () => {
         return !isTopicSentence && !isAdjectiveSentence;
       })
       .map(s => s.trim());
+    
+    // If no lore was extracted, add a default lore entry
+    if (lore.length === 0) {
+      lore.push(`A trading agent specializing in market analysis and strategic investment decisions`);
+    }
     
     return {
       lore,
