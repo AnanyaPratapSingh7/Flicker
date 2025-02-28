@@ -1,0 +1,260 @@
+/* Paradyze2 Design System CSS Variables and Utility Classes */
+
+:root {
+  /* Base Colors */
+  --background: 0 0% 3.9%;
+  --foreground: 0 0% 98%;
+  
+  /* Component Colors */
+  --card: 0 0% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  
+  /* UI Colors */
+  --primary: 0 0% 98%;
+  --primary-foreground: 0 0% 9%;
+  --secondary: 0 0% 14.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 14.9%;
+  --muted-foreground: 0 0% 63.9%;
+  --accent: 0 0% 14.9%;
+  --accent-foreground: 0 0% 98%;
+  
+  /* Functional Colors */
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --success: 142.1 76.2% 36.3%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 9%;
+  --info: 217.2 91.2% 59.8%;
+  --info-foreground: 0 0% 98%;
+  
+  /* Border and Input */
+  --border: 0 0% 14.9%;
+  --input: 0 0% 14.9%;
+  --ring: 0 0% 83.1%;
+  
+  /* Gold Theme Colors */
+  --gold-from: #D4C6A1;  /* Lighter beige gold */
+  --gold-via: #BFB28F;   /* Medium beige gold */
+  --gold-to: #A69A78;    /* Darker beige gold */
+  --gold-accent: #BFB28F;
+  --gold-rgb: 191, 178, 143;
+  
+  /* Border Radius */
+  --radius: 0.75rem;
+  
+  /* Animation Durations */
+  --duration-fast: 150ms;
+  --duration-default: 300ms;
+  --duration-slow: 500ms;
+  --duration-very-slow: 700ms;
+}
+
+/* Dark Theme (Default) */
+.dark {
+  --background: 0 0% 3.9%;
+  --foreground: 0 0% 98%;
+}
+
+/* Light Theme (Optional) */
+.light {
+  --background: 0 0% 98%;
+  --foreground: 0 0% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 3.9%;
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 96.1%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 96.1%;
+  --muted-foreground: 0 0% 45.1%;
+  --accent: 0 0% 96.1%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 89.8%;
+  --input: 0 0% 89.8%;
+  --ring: 0 0% 3.9%;
+}
+
+/* Glass Effect Utility Class */
+.glass {
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* Gold Gradient Text Utility Class */
+.gold-gradient-text {
+  background: linear-gradient(to right, var(--gold-from), var(--gold-via), var(--gold-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Gold Border Utility Class */
+.gold-border {
+  border: 1px solid;
+  border-image-slice: 1;
+  border-image-source: linear-gradient(to right, var(--gold-from), var(--gold-to));
+}
+
+/* Gold Button Utility Class */
+.gold-button {
+  background: linear-gradient(to right, var(--gold-from), var(--gold-via), var(--gold-to));
+  color: black;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.gold-button:hover {
+  filter: brightness(110%);
+}
+
+.gold-button:active {
+  filter: brightness(90%);
+  transform: scale(0.98);
+}
+
+/* Glass Card Hover Effect */
+.glass-card-hover {
+  transition: all 0.3s ease;
+}
+
+.glass-card-hover:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Text Opacity Utilities */
+.text-high-contrast {
+  opacity: 1;
+}
+
+.text-medium-contrast {
+  opacity: 0.8;
+}
+
+.text-low-contrast {
+  opacity: 0.6;
+}
+
+.text-disabled {
+  opacity: 0.4;
+}
+
+/* Animation Utilities */
+.animate-fade-in {
+  animation: fadeIn var(--duration-default) ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--duration-default) ease-out forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown var(--duration-default) ease-out forwards;
+}
+
+.animate-scale {
+  animation: scale var(--duration-default) ease-out forwards;
+}
+
+/* Keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scale {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* Responsive Utilities */
+.responsive-container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-container {
+    max-width: 640px;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-container {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-container {
+    max-width: 1024px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .responsive-container {
+    max-width: 1280px;
+  }
+}
+
+/* Accessibility Utilities */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.focus-ring {
+  outline: 2px solid rgba(var(--gold-rgb), 0.6);
+  outline-offset: 2px;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

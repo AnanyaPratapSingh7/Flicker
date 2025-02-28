@@ -1,0 +1,20 @@
+{
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false,
+  "stylelint.validate": ["css", "scss"],
+  "tailwindCSS.emmetCompletions": true,
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.stylelint": "always"
+  }
+}

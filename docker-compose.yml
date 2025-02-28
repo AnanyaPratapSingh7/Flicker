@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database (local alternative to Supabase)
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: paradyze
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+
+  # ElizaOS Integration Service
+  eliza-integration:
+    build: ./backend/eliza-integration
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/paradyze
+      - ELIZA_RUNTIME_PATH=/app/eliza-main
+      - INTEGRATION_PORT=3001
+    volumes:
+      - ./backend/eliza-main:/app/eliza-main
+      - ./backend/eliza-integration:/app
+    depends_on:
+      - postgres
+
+  # Agent manager service (for creating/managing agents)
+  agent-manager:
+    build: ./backend/agent-manager
+    ports:
+      - "3002:3002"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/paradyze
+      - INTEGRATION_URL=http://eliza-integration:3001
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./backend/agent-manager:/app
+    depends_on:
+      - postgres
+      - eliza-integration
+
+volumes:
+  postgres_data:

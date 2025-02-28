@@ -1,13 +1,111 @@
+/* This is a Tailwind CSS file */
+/* tailwindcss */
+/* stylelint-disable */
+/* postcss-css-variables: true */
+/* postcss-import: true */
+/* postcss-nested: true */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global scrollbar styling */
+html, body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 198, 161, 0.3) rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 198, 161, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 198, 161, 0.5);
+}
+
+:root {
+  --background: 0 0% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 0 0% 9%;
+  --secondary: 0 0% 14.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 14.9%;
+  --muted-foreground: 0 0% 63.9%;
+  --accent: 0 0% 14.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 14.9%;
+  --input: 0 0% 14.9%;
+  --ring: 0 0% 83.1%;
+  --radius: 0.75rem;
+  --gold-from: #D4C6A1;  /* Lighter beige gold */
+  --gold-via: #BFB28F;   /* Medium beige gold */
+  --gold-to: #A69A78;    /* Darker beige gold */
+  --gold-accent: #BFB28F; /* Medium beige gold */
+  --gold-rgb: 191, 178, 143;
+}
+
 body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-black/40 backdrop-blur-xl border border-white/5 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.2)];
+  }
+  
+  .gold-gradient-text {
+    @apply bg-gradient-to-r from-[var(--gold-from)] via-[var(--gold-via)] to-[var(--gold-to)] bg-clip-text text-transparent;
+  }
+  
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .three-d-carousel {
+    @apply bg-mauve-dark-2;
+  }
+  
+  .bg-mauve-dark-2 {
+    background-color: rgba(26, 28, 35, 0.5);
+  }
 }
