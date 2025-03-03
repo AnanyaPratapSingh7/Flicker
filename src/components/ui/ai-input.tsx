@@ -9,6 +9,10 @@ import { useAutoResizeTextarea } from "../hooks/use-auto-resize-textarea";
 // Import custom styles for the AI input component
 import "./ai-input-styles.css";
 
+// Import the client API for OpenRouter integration
+import aiClient, { Message } from "../../api/chat/client";
+import env from "../../utils/env";
+
 interface AIInputProps {
   id?: string
   placeholder?: string
@@ -42,11 +46,11 @@ export function AIInput({
   // OpenRouter API related props with defaults
   systemPrompt = "You are a helpful AI assistant for creating AI agents.",
   initialPrompt,
-  model = "openai/gpt-4o-mini",
+  model = env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
   temperature = 0.7,
   maxTokens = 800,
   streamingEnabled = true,
-  apiEndpoint = "http://localhost:3005/api/ai-chat", // Must always be an absolute URL with protocol
+  apiEndpoint = "/api/chat/ai-chat", // Updated for Vite setup
   showConversation = true
 }: AIInputProps) {
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -181,31 +185,21 @@ export function AIInput({
     }
   };
 
-  // Fetch response without streaming
+  // Fetch response without streaming using our client API
   const fetchResponse = async (messages: Array<{role: string, content: string}>) => {
-    console.log(`Attempting to fetch from ${actualEndpoint} with ${messages.length} messages`);
+    console.log(`Attempting non-streaming request with ${messages.length} messages`);
     try {
-      const response = await fetch(actualEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        mode: 'cors',
-        credentials: 'include',
-        body: JSON.stringify({
-          messages,
+      // Use our client API for non-streaming requests
+      const data = await aiClient.sendChatRequest(
+        messages as Message[],
+        {
           temperature,
           max_tokens: maxTokens,
           model,
           stream: false
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
+        }
+      );
+      
       const assistantMessage = data.choices[0].message.content;
       
       // Update conversation with the response
@@ -272,103 +266,56 @@ export function AIInput({
     }
   };
 
-  // Stream response
+  // Stream response using our client API
   const streamResponse = async (messages: Array<{role: string, content: string}>) => {
     try {
-      console.log(`Sending streaming request to ${actualEndpoint} with ${messages.length} messages and model ${model}...`);
-      const response = await fetch(actualEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        mode: 'cors',
-        credentials: 'include',
-        body: JSON.stringify({
-          messages,
+      console.log(`Sending streaming request with ${messages.length} messages and model ${model}...`);
+      
+      // Create new message placeholder in conversation
+      setConversation(prev => [...prev, { role: 'assistant', content: '' }]);
+      
+      let assistantMessage = '';
+      
+      // Use our client API for streaming
+      await aiClient.streamChatRequest(
+        messages as Message[],
+        {
           temperature,
           max_tokens: maxTokens,
           model,
           stream: true
-        }),
-      });
-
-      // Handle HTTP errors
-      if (!response.ok) {
-        let errorText = `API error: ${response.status}`;
-        try {
-          // Try to parse error details
-          const errorData = await response.json();
-          console.error('API error details:', errorData);
-          errorText = errorData.message || errorData.error || errorText;
-        } catch (e) {
-          // If we can't parse JSON, just use the status
-          console.warn('Could not parse error response:', e);
-        }
-        throw new Error(errorText);
-      }
-
-      if (!response.body) {
-        throw new Error('ReadableStream not supported');
-      }
-
-      // Create new message in conversation
-      setConversation(prev => [...prev, { role: 'assistant', content: '' }]);
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let assistantMessage = '';
-      let buffer = ''; // Buffer for incomplete SSE data
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          // Decode the chunk and append to the buffer
-          const chunk = decoder.decode(value, { stream: true });
-          buffer += chunk;
-          
-          // Process each complete line in the buffer (Server-Sent Events format)
-          const lines = buffer.split('\n');
-          
-          // Keep the last line in the buffer if it's incomplete
-          buffer = lines.pop() || '';
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              if (data === '[DONE]') continue;
+        },
+        // Handle each chunk
+        (chunk) => {
+          const content = chunk.choices?.[0]?.delta?.content || '';
+          if (content) {
+            assistantMessage += content;
+            // Update the last message in the conversation with new content
+            setConversation(prev => {
+              const newConvo = [...prev];
+              newConvo[newConvo.length - 1].content = assistantMessage;
               
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.choices?.[0]?.delta?.content || '';
-                if (content) {
-                  assistantMessage += content;
-                  // Update the last message in the conversation with new content
-                  setConversation(prev => {
-                    const newConvo = [...prev];
-                    newConvo[newConvo.length - 1].content = assistantMessage;
-                    
-                    // Scroll to bottom after updating content
-                    setTimeout(() => scrollToBottom(), 10);
-                    return newConvo;
-                  });
-                }
-              } catch (e) {
-                console.warn('Error parsing SSE:', e, 'Data:', data);
-              }
-            }
+              // Scroll to bottom after updating content
+              setTimeout(() => scrollToBottom(), 10);
+              return newConvo;
+            });
           }
+        },
+        // Handle errors
+        (error) => {
+          console.error('Error in streaming chat:', error);
+          setError(error instanceof Error ? error.message : 'Unknown error');
+          throw error;
+        },
+        // On complete
+        () => {
+          console.log('Stream completed successfully');
+          scrollToBottom();
         }
-      } catch (error) {
-        console.error('Error reading stream:', error);
-        throw error;
-      } finally {
-        reader.releaseLock();
-      }
-    } catch (outerError) {
-      console.error('Stream response error:', outerError);
-      throw outerError;
+      );
+    } catch (error) {
+      console.error('Stream response error:', error);
+      throw error;
     }
   };
 

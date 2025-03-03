@@ -1,14 +1,22 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const aiProxyRoutes = require('./src/api/chat');
+
+// Use our server-side routes
+const aiProxyRoutes = require('./src/api/chat/server');
 
 // Load environment variables from .env file
 dotenv.config();
 
+// Helper function to get environment variables (same as in server.js)
+const getEnv = (name, defaultValue = undefined) => {
+  // Try Vite format first, then regular format
+  return process.env[`VITE_${name}`] || process.env[name] || defaultValue;
+};
+
 console.log('Starting OpenRouter proxy server with env vars:');
-console.log(`OPENROUTER_API_KEY exists: ${!!process.env.OPENROUTER_API_KEY}`);
-console.log(`OPENROUTER_MODEL: ${process.env.OPENROUTER_MODEL}`);
+console.log(`OPENROUTER_API_KEY exists: ${!!getEnv('OPENROUTER_API_KEY')}`);
+console.log(`OPENROUTER_MODEL: ${getEnv('OPENROUTER_MODEL', 'openai/gpt-4o-mini')}`);
 
 const app = express();
 const PORT = 3005;
