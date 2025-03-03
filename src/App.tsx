@@ -8,6 +8,7 @@ import { ThreeDPhotoCarouselDemo } from "./components/ui/code-demo";
 import { AgentLaunchpad } from './components/AgentLaunchpad/AgentLaunchpad';
 import { CreateAgent } from './components/CreateAgent/CreateAgent';
 import { AgentChat } from './components/AgentChat/AgentChat';
+import AgentManagement from './components/AgentManagement/AgentManagement';
 
 // Lazy load components
 const HomeDashboard = lazy(() => import('./components/HomeDashboard/HomeDashboard'));
@@ -26,6 +27,7 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="/" element={<HomeDashboard />} />
                 <Route path="/agent-launchpad" element={<AgentLaunchpad />} />
+                <Route path="/agent-management" element={<AgentManagement />} />
                 <Route path="/prediction-market" element={<PredictionMarket />} />
                 <Route path="/money-market" element={<MoneyMarket />} />
                 <Route path="/demo/3d-carousel" element={<ThreeDPhotoCarouselDemo />} />

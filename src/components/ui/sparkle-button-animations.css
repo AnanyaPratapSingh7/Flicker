@@ -1,0 +1,44 @@
+/* 
+ * Sparkle Button Animations
+ * Animations for the AI Idea icon and button effects
+ */
+
+/* Subtle pulse animation for the icon */
+@keyframes pulse-subtle {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+/* Sparkle animation for the star part */
+@keyframes sparkle {
+  0% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 0px rgba(191, 178, 143, 0));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 3px rgba(191, 178, 143, 0.8));
+  }
+  100% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 0px rgba(191, 178, 143, 0));
+  }
+}
+
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}

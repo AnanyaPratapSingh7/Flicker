@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Wallet, LineChart, Bot, Home, DollarSign, LogOut, Twitter } from 'lucide-react';
+import { Wallet, LineChart, Bot, Home, DollarSign, LogOut, Twitter, Users } from 'lucide-react';
 import { Button } from './Button';
 import { useWallet } from '../../contexts/WalletContext';
 
@@ -13,6 +13,7 @@ interface NavigationItem {
 const navigation: NavigationItem[] = [
   { name: 'Dashboard', path: '/', icon: Home },
   { name: 'Agent Launchpad', path: '/agent-launchpad', icon: Bot },
+  { name: 'Agent Management', path: '/agent-management', icon: Users },
   { name: 'Prediction Market', path: '/prediction-market', icon: LineChart },
   { name: 'Money Market', path: '/money-market', icon: Wallet },
   { name: 'Earn', path: '/earn', icon: DollarSign },

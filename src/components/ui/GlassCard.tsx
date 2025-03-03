@@ -127,7 +127,7 @@ const GlassCardContent = React.forwardRef<HTMLDivElement, GlassCardContentProps>
     return (
       <div
         ref={ref}
-        className={cn("p-4", className)}
+        className={cn("p-3 relative z-10 h-full", className)}
         {...props}
       >
         {children}

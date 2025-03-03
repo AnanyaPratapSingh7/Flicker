@@ -11,6 +11,19 @@ ParadyzeV2 is a comprehensive cryptocurrency trading agent platform that enables
 - **Prediction Market**: Participate in decentralized prediction markets across various categories
 - **Money Market**: Lend, borrow, and earn interest on cryptocurrency assets
 
+### AI-Powered Agent Creation
+
+The platform includes a secure AI-powered agent creation wizard that helps users design and configure their trading agents:
+
+- **Secure OpenRouter API Integration**: All AI requests are proxied through a secure backend endpoint that keeps API keys private
+- **Context-Aware Assistance**: The AI assistant understands the current step in the creation process
+- **Form Field Suggestions**: AI can suggest content for agent configuration fields
+- **Guided Creation Process**: Step-by-step wizard interface with AI guidance at each step
+
+For more information about the AI integration, see:
+- [AI Proxy Usage Guide](docs/ai-proxy-usage.md)
+- [AI Proxy Setup Guide](docs/ai-proxy-setup.md)
+
 ## Technology Stack
 
 - **Frontend**: React, React Router with lazy loading for optimized performance

@@ -15,6 +15,17 @@ html, body {
   scrollbar-color: rgba(212, 198, 161, 0.3) rgba(255, 255, 255, 0.05);
 }
 
+/* Remove default focus outline */
+*:focus {
+  outline: none !important;
+}
+
+/* Custom focus styles for accessibility */
+*:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4) !important;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }

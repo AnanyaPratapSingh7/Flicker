@@ -1,24 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GlassCard, GlassCardContent } from '../../components/ui/GlassCard';
 import { Button } from '../../components/ui/Button';
-import { Send, Upload, RefreshCw, ChevronDown, ChevronUp, Settings, ExternalLink } from 'lucide-react';
+import { Upload, RefreshCw, ChevronDown, ChevronUp, Settings, ExternalLink, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import axios from 'axios';
 import './CreateAgent.css'; // Import CSS for custom scrollbar
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { SparkleButton } from '../../components/ui/sparkle-button';
 
-// Agent interface for the list of agents
-interface Agent {
-  id: string;
-  name: string;
-  description?: string;
-}
+// Agent and Message interfaces removed
 
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
+// Message interface removed
 
 interface AgentConfig {
   name: string;
@@ -26,6 +18,7 @@ interface AgentConfig {
   ticker: string;
   personality: string;
   picture: string;
+  topics?: string[];
   clients: {
     discord: boolean;
     telegram: boolean;
@@ -36,9 +29,6 @@ interface AgentConfig {
   };
   templateName: string;
   enableTwitter: boolean;
-  modelProvider: string;
-  imageModelProvider: string;
-  model: string;
   memorySettings: {
     enableRagKnowledge: boolean;
     enableLoreMemory: boolean;
@@ -46,6 +36,9 @@ interface AgentConfig {
     enableDocumentsMemory: boolean;
   };
   plugins: string[];
+  initialTokenSupply?: number;
+  creatorShare?: number;
+  liquidityShare?: number;
 }
 
 // X Logo SVG Component
@@ -69,6 +62,7 @@ const CreateAgent: React.FC = () => {
     ticker: '',
     personality: '',
     picture: 'https://source.unsplash.com/random/300x300/?robot,ai',
+    topics: [],
     clients: {
       discord: false,
       telegram: false,
@@ -79,36 +73,139 @@ const CreateAgent: React.FC = () => {
     },
     templateName: 'trading-agent',
     enableTwitter: false,
-    modelProvider: 'openrouter',
-    imageModelProvider: 'openai',
-    model: 'openai/gpt-4o-mini',
     memorySettings: {
       enableRagKnowledge: false,
       enableLoreMemory: true,
       enableDescriptionMemory: true,
       enableDocumentsMemory: false,
     },
-    plugins: []
+    plugins: [],
+    initialTokenSupply: 1000000,
+    creatorShare: 20,
+    liquidityShare: 80
   });
   
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Hello! I\'m here to help you create a trading agent. What kind of trading agent would you like to create today?',
-      timestamp: new Date()
-    }
-  ]);
-  
-  const [inputMessage, setInputMessage] = useState('');
+  // Removed chat-related state
   const [isCreating, setIsCreating] = useState(false);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [activeTab, setActiveTab] = useState('basic'); // 'basic', 'personality', 'examples', 'clients'
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
-  const [loadAgentError, setLoadAgentError] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  
+  // Step-based navigation
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 4; // Total number of steps in the wizard
+  
+  // State for validation errors
+  const [validationError, setValidationError] = useState<string | null>(null);
+  
+  // Validation function
+  const validateCurrentStep = (): boolean => {
+    setValidationError(null);
+    
+    switch(currentStep) {
+      case 1: // Basic Information
+        if (!agentConfig.name.trim()) {
+          setValidationError('Agent name is required');
+          return false;
+        }
+        if (!agentConfig.description.trim()) {
+          setValidationError('Description is required');
+          return false;
+        }
+        // At least one client integration should be enabled
+        const hasEnabledClient = Object.values(agentConfig.clients).some(enabled => enabled);
+        if (!hasEnabledClient) {
+          setValidationError('At least one client integration is required');
+          return false;
+        }
+        return true;
+        
+      case 2: // Personality & Knowledge
+        if (!agentConfig.personality.trim()) {
+          setValidationError('Personality description is required');
+          return false;
+        }
+        return true;
+        
+      case 3: // Tokenize
+        // Validate ticker
+        if (!agentConfig.ticker.trim()) {
+          setValidationError('Ticker symbol is required');
+          return false;
+        }
+        
+        // Validate tokenization fields
+        if (!agentConfig.initialTokenSupply || agentConfig.initialTokenSupply < 1000) {
+          setValidationError('Initial token supply must be at least 1,000');
+          return false;
+        }
+        if (agentConfig.initialTokenSupply > 10000000) {
+          setValidationError('Initial token supply cannot exceed 10,000,000');
+          return false;
+        }
+        
+        const creatorShare = agentConfig.creatorShare || 0;
+        const liquidityShare = agentConfig.liquidityShare || 0;
+        
+        if (creatorShare < 0 || creatorShare > 100) {
+          setValidationError('Creator share must be between 0 and 100%');
+          return false;
+        }
+        
+        if (liquidityShare < 0 || liquidityShare > 100) {
+          setValidationError('Liquidity pool share must be between 0 and 100%');
+          return false;
+        }
+        
+        if (creatorShare + liquidityShare !== 100) {
+          setValidationError('Token distribution must total 100%');
+          return false;
+        }
+        
+        return true;
+        
+      case 4: // Review & Create
+        return true;
+        
+      default:
+        return true;
+    }
+  };
+  
+  // Navigation functions
+  const nextStep = () => {
+    if (currentStep < totalSteps && validateCurrentStep()) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+  
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+  
+  const goToStep = (step: number) => {
+    if (step >= 1 && step <= totalSteps) {
+      setCurrentStep(step);
+    }
+  };
+  
+  // Get step title
+  const getStepTitle = (step: number): string => {
+    switch (step) {
+      case 1:
+        return 'Basic Information';
+      case 2:
+        return 'Personality & Knowledge';
+      case 3:
+        return 'Tokenize';
+      case 4:
+        return 'Review & Create';
+      default:
+        return 'Agent Creation';
+    }
+  };
   const [customPluginId, setCustomPluginId] = useState('');
 
   // Available models
@@ -127,114 +224,21 @@ const CreateAgent: React.FC = () => {
     { value: 'anthropic', label: 'Anthropic' }
   ];
 
-  // Scroll to bottom when component mounts
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, []);
+  // Removed chat-related useEffect
 
-  // Scroll to bottom of chat when messages change
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      // Small delay to ensure the DOM has updated with the new message
-      setTimeout(() => {
-        if (chatContainerRef.current) {
-          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-        }
-      }, 100);
-    }
-  }, [messages]);
+  // Removed chat-related useEffect
 
-  // Fetch agents on component mount
-  useEffect(() => {
-    fetchAgents();
-  }, []);
-
-  const fetchAgents = async () => {
-    setIsLoadingAgents(true);
-    setLoadAgentError(null);
-    
-    try {
-      const response = await axios.get('http://localhost:3001/api/agents');
-      setAgents(response.data.agents || []);
-    } catch (error) {
-      console.error('Error fetching agents:', error);
-      setLoadAgentError('Failed to load agents. Please try again.');
-    } finally {
-      setIsLoadingAgents(false);
-    }
+  // Dummy fetchAgents function to replace the removed one
+  const fetchAgents = () => {
+    console.log('Agents would be fetched here in the original implementation');
+    // This is just a placeholder - in the wizard we don't need to actually fetch agents
   };
+  
+  // Removed more chat-related code
 
-  // Load agent details into the form
-  const loadAgentDetails = async (agentId: string) => {
-    try {
-      // Get agent details from the API
-      const response = await axios.get(`http://localhost:3001/api/agents/${agentId}`);
-      const agent = response.data;
-      
-      // Update the form with agent details
-      setAgentConfig({
-        ...agentConfig,
-        name: agent.name || '',
-        description: agent.description || '',
-        // For other fields, we'll need to map from the agent format to our form format
-        // This will vary based on your API response structure
-        personality: '', // This might need to be extracted from lore, bio, etc.
-        ticker: '', // This might need to be extracted from name or other fields
-        // Keep existing clients and other settings
-        clients: {
-          ...agentConfig.clients
-        }
-      });
-      
-      // Add confirmation message
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `I've loaded the configuration for agent "${agent.name}". You can modify it and create a new agent based on this configuration.`,
-        timestamp: new Date()
-      }]);
-      
-    } catch (error) {
-      console.error('Error loading agent details:', error);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `I couldn't load the agent details. Please try again or start with a new configuration.`,
-        timestamp: new Date()
-      }]);
-    }
-  };
+  // Removed handleSendMessage function
 
-  const handleSendMessage = () => {
-    if (inputMessage.trim() === '') return;
-    
-    // Add user message
-    const userMessage: Message = {
-      role: 'user',
-      content: inputMessage,
-      timestamp: new Date()
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        role: 'assistant',
-        content: 'I understand you want to create a trading agent. Could you tell me more about the specific trading strategies or indicators you want this agent to use?',
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
+  // Removed handleKeyDown function
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -289,6 +293,11 @@ const CreateAgent: React.FC = () => {
       'Mathematical and probability-based approach to markets. Specializes in options trading strategies. Focuses on volatility analysis and risk/reward optimization. Provides detailed explanations of complex trading concepts.'
     ];
     
+    // Generate random tokenization values
+    const initialTokenSupply = Math.floor(Math.random() * 9000000) + 1000000; // Random between 1M and 10M
+    const creatorShare = Math.floor(Math.random() * 30) + 10; // Random between 10% and 40%
+    const liquidityShare = 100 - creatorShare; // Ensure total is 100%
+    
     // Set the agent config
     setAgentConfig({
       ...agentConfig,
@@ -302,7 +311,10 @@ const CreateAgent: React.FC = () => {
         direct: true, // Always enabled
         twitter: Math.random() > 0.5,
         discord: Math.random() > 0.5
-      }
+      },
+      initialTokenSupply,
+      creatorShare,
+      liquidityShare
     });
   };
   
@@ -327,13 +339,13 @@ const CreateAgent: React.FC = () => {
       // Prepare the Eliza character file format
       const elizaCharacterConfig = {
         name: agentConfig.name,
-        modelProvider: agentConfig.modelProvider || 'openrouter',
+        modelProvider: 'openrouter', // Fixed model provider
         clients: activeClients,
         plugins: agentConfig.plugins,
         settings: {
           ragKnowledge: agentConfig.memorySettings.enableRagKnowledge,
           secrets: {},
-          model: agentConfig.model || 'openai/gpt-4o-mini'
+          model: 'openai/gpt-4o-mini' // Fixed model
         },
         // Add system prompt based on personality
         system: `You are ${agentConfig.name}. ${agentConfig.description}\n\nPersonality: ${agentConfig.personality}`,
@@ -378,7 +390,14 @@ const CreateAgent: React.FC = () => {
         templateName: agentConfig.templateName,
         name: agentConfig.name,
         description: agentConfig.description,
-        character: elizaCharacterConfig
+        character: elizaCharacterConfig,
+        tokenization: {
+          initialSupply: agentConfig.initialTokenSupply,
+          distribution: {
+            creator: agentConfig.creatorShare,
+            liquidityPool: agentConfig.liquidityShare
+          }
+        }
       });
       
       console.log('Agent created:', response.data);
@@ -504,110 +523,87 @@ const CreateAgent: React.FC = () => {
     <div className="min-h-screen text-white p-4 md:p-6">
       <h1 className="text-3xl font-bold text-center mb-6">Create Your Trading Agent</h1>
       
-      {/* Agents Top Bar */}
-      <div className="mb-6">
-        <GlassCard className="w-full" noHoverEffect={true}>
-          <GlassCardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold">Your Agents</h2>
-                {agents.length > 0 && (
-                  <span className="bg-[#D4C6A1]/20 text-[#D4C6A1] text-xs px-2 py-1 rounded-full">
-                    {agents.length}
-                  </span>
-                )}
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="flex items-center gap-2"
-                onClick={fetchAgents}
-                disabled={isLoadingAgents}
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoadingAgents ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
+      {/* Step Wizard Navigation */}
+      <div className="mb-12">
+        <div className="step-wizard">
+          {/* Step Progress Bar */}
+          <div className="step-progress">
+            {/* Background line and progress bar are added via CSS ::before */}
+            <motion.div 
+              className="step-progress-bar" 
+              initial={{ width: 0 }}
+              animate={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+              style={{ width: `${Math.max(0, ((currentStep - 1) / (totalSteps - 1)) * 100)}%` }}
+            ></motion.div>
             
-            {loadAgentError && (
-              <div className="text-red-500 text-sm mb-4">
-                {loadAgentError}
-              </div>
-            )}
-            
-            <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
-              {agents.length === 0 ? (
-                <div className="text-white/70 text-sm py-4">
-                  {isLoadingAgents ? 'Loading agents...' : 'No agents created yet. Create your first agent below!'}
-                </div>
-              ) : (
-                <AnimatePresence>
-                  {agents.map((agent, index) => (
-                    <motion.div 
-                      key={agent.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ duration: 0.2, delay: index * 0.05 }}
-                      className={`flex-shrink-0 w-40 bg-black/30 border ${selectedAgent?.id === agent.id ? 'border-[#D4C6A1]' : 'border-white/10'} 
-                        rounded-lg p-3 cursor-pointer transition-all hover:bg-black/40`}
-                      onClick={() => setSelectedAgent(agent.id === selectedAgent?.id ? null : agent)}
-                    >
-                      <div className="flex items-center justify-center mb-2">
-                        <div className="w-12 h-12 rounded-full bg-[#D4C6A1]/20 flex items-center justify-center text-[#D4C6A1] text-lg font-semibold">
-                          {agent.name.charAt(0).toUpperCase()}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <h3 className="font-semibold text-sm truncate">{agent.name}</h3>
-                        <p className="text-white/70 text-xs mt-1 truncate">{agent.id.substring(0, 8)}</p>
-                        <div className="mt-2 flex justify-center gap-2">
-                          <button
-                            className="text-xs text-[#D4C6A1] hover:text-[#BFB28F] flex items-center px-2 py-1 bg-[#D4C6A1]/10 rounded-sm hover:bg-[#D4C6A1]/20 transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              loadAgentDetails(agent.id);
-                            }}
-                          >
-                            Load
-                          </button>
-                          <Link 
-                            to={`/agents/${agent.id}`}
-                            className="text-xs text-[#D4C6A1] hover:text-[#BFB28F] flex items-center gap-1 px-2 py-1 bg-[#D4C6A1]/10 rounded-sm hover:bg-[#D4C6A1]/20 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            View
-                          </Link>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              )}
-            </div>
-          </GlassCardContent>
-        </GlassCard>
+            {/* Step circles */}
+            {Array.from({ length: totalSteps }).map((_, index) => {
+              const stepNumber = index + 1;
+              const isActive = currentStep === stepNumber;
+              const isCompleted = currentStep > stepNumber;
+              
+              return (
+                <motion.div 
+                  key={stepNumber} 
+                  className="step-item"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1, duration: 0.3 }}
+                >
+                  <motion.div 
+                    className={`step-circle ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+                    onClick={() => goToStep(stepNumber)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {isCompleted ? (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      >
+                        <span className="step-number" style={{ color: 'rgba(80, 80, 80, 0.9)', fontWeight: 'bold' }}>{stepNumber}</span>
+                      </motion.div>
+                    ) : (
+                      <span className="step-number" style={{ color: isActive ? '#D4C6A1' : 'rgba(255, 255, 255, 0.7)' }}>{stepNumber}</span>
+                    )}
+                  </motion.div>
+                  <motion.div 
+                    className={`step-label ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+                    animate={{ 
+                      color: isActive ? "#D4C6A1" : isCompleted ? "rgba(255, 255, 255, 0.3)" : "rgba(255, 255, 255, 0.5)",
+                      y: isActive ? -2 : 0
+                    }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {getStepTitle(stepNumber)}
+                  </motion.div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
       </div>
       
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Agent Preview Card */}
-        <GlassCard className="w-full" noHoverEffect={true}>
-          <GlassCardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Agent Preview</h2>
-              <div className="flex items-center gap-2">
+      <div className="max-w-7xl mx-auto">
+        {/* Agent Preview Card - Wider and more modern */}
+        <GlassCard className="w-full mb-8" noHoverEffect={true}>
+          <GlassCardContent className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold">Agent Preview</h2>
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setAdvancedMode(!advancedMode)}
-                  className="flex items-center gap-1 text-xs bg-black/30 hover:bg-black/50 text-white/70 hover:text-white px-2 py-1 rounded-md border border-white/10"
+                  className="flex items-center gap-2 text-sm bg-black/30 hover:bg-black/50 text-white/70 hover:text-white px-3 py-2 rounded-lg border border-white/10 transition-all duration-200"
                 >
-                  <Settings className="w-3 h-3" />
+                  <Settings className="w-4 h-4" />
                   {advancedMode ? 'Simple Mode' : 'Advanced Mode'}
                 </button>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200"
                   onClick={generateRandomAgent}
                 >
                   <RefreshCw className="h-4 w-4" />
@@ -616,17 +612,17 @@ const CreateAgent: React.FC = () => {
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Agent Image Column - More compact */}
-              <div className="flex flex-col items-center">
-                <div className="relative w-24 h-24 mb-2">
+            <div className="flex flex-col md:flex-row gap-8">
+              {/* Agent Image Column - Only visible on first step */}
+              <div className={`flex flex-col items-center ${currentStep !== 1 ? 'hidden' : ''}`}>
+                <div className="relative w-32 h-32 mb-3 overflow-hidden rounded-2xl shadow-lg">
                   <img 
                     src={agentConfig.picture} 
                     alt="Agent" 
-                    className="w-full h-full object-cover rounded-full border-2 border-[#D4C6A1]/30"
+                    className="w-full h-full object-cover border-2 border-[#D4C6A1]/30"
                   />
-                  <label className="absolute bottom-0 right-0 bg-[#D4C6A1]/20 hover:bg-[#D4C6A1]/30 text-[#D4C6A1] border border-[#D4C6A1]/30 rounded-full p-1 cursor-pointer">
-                    <Upload className="h-3 w-3" />
+                  <label className="absolute bottom-2 right-2 bg-[#D4C6A1]/20 hover:bg-[#D4C6A1]/30 text-[#D4C6A1] border border-[#D4C6A1]/30 rounded-full p-2 cursor-pointer transition-all duration-200">
+                    <Upload className="h-4 w-4" />
                     <input 
                       type="file" 
                       className="hidden" 
@@ -636,120 +632,479 @@ const CreateAgent: React.FC = () => {
                   </label>
                 </div>
                 <div className="text-center">
-                  <h3 className="font-semibold text-sm">{agentConfig.name || 'Agent Name'}</h3>
-                  <p className="text-white/70 text-xs">{agentConfig.ticker || 'TICKER'}</p>
+                  <h3 className="font-semibold text-lg">{agentConfig.name || 'Agent Name'}</h3>
+                  {agentConfig.ticker && <p className="text-white/70 text-sm">{agentConfig.ticker}</p>}
                 </div>
               </div>
               
-              {/* Agent Details Column */}
-              <div className="md:col-span-3">
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-white/70 text-xs mb-1">Name</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50"
-                      placeholder="e.g. AlphaTrader"
-                      value={agentConfig.name}
-                      onChange={(e) => setAgentConfig({...agentConfig, name: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-white/70 text-xs mb-1">Ticker</label>
-                    <input 
-                      type="text" 
-                      className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50"
-                      placeholder="e.g. ALPH (max 5 characters)"
-                      maxLength={5}
-                      value={agentConfig.ticker}
-                      onChange={(e) => setAgentConfig({...agentConfig, ticker: e.target.value.toUpperCase()})}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-white/70 text-xs mb-1">Description</label>
-                    <textarea 
-                      className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 resize-none"
-                      rows={3}
-                      placeholder="e.g. A trading agent specializing in cryptocurrency analysis and trading strategies"
-                      value={agentConfig.description}
-                      onChange={(e) => setAgentConfig({...agentConfig, description: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-white/70 text-xs mb-1">Personality</label>
-                    <textarea 
-                      className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 resize-none"
-                      rows={3}
-                      placeholder="Describe your agent's trading personality and strategy in detail. Include their approach to risk, preferred markets, analysis style, and any specialized knowledge. This will be used to generate the agent's character."
-                      value={agentConfig.personality}
-                      onChange={(e) => setAgentConfig({...agentConfig, personality: e.target.value})}
-                    />
-                  </div>
+              {/* Agent Details Column - Wider and more modern */}
+              <div className="flex-1">
+                {/* Step Title */}
+                <div className="mb-4 border-b border-white/10 pb-2">
+                  <h2 className="text-xl font-semibold">
+                    {currentStep === 1 && "Step 1: Basic Information"}
+                    {currentStep === 2 && "Step 2: Personality & Knowledge"}
+                    {currentStep === 3 && "Step 3: Tokenize"}
+                    {currentStep === 4 && "Step 4: Review & Create"}
+                  </h2>
+                  <p className="text-white/60 text-sm mt-1">
+                    {currentStep === 1 && "Set up the basic details and integrations for your trading agent"}
+                    {currentStep === 2 && "Define your agent's personality and knowledge areas"}
+                    {currentStep === 3 && "Configure your agent's ticker symbol and tokenization settings"}
+                    {currentStep === 4 && "Review your agent's configuration and create it"}
+                  </p>
                 </div>
-                
-                {/* Client Integrations */}
-                <div className="mt-3">
-                  <label className="block text-white/70 text-xs mb-1">Client Integrations</label>
-                  <div className="flex gap-4">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="enableDiscord"
-                        className="mr-2"
-                        checked={agentConfig.clients.discord}
-                        onChange={(e) => setAgentConfig({
-                          ...agentConfig, 
-                          clients: {
-                            ...agentConfig.clients,
-                            discord: e.target.checked
-                          }
-                        })}
-                      />
-                      <label htmlFor="enableDiscord" className="text-white/70 text-xs flex items-center">
-                        <DiscordLogo className="w-3 h-3 mr-1 text-white/70" /> Discord
-                      </label>
+                {/* Show different fields based on current step */}
+                {currentStep === 1 && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Name</label>
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 pr-10 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
+                          placeholder="e.g. AlphaTrader"
+                          value={agentConfig.name}
+                          onChange={(e) => setAgentConfig({...agentConfig, name: e.target.value})}
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <SparkleButton 
+                            onSubmit={(value) => setAgentConfig({...agentConfig, name: value})} 
+                            placeholder="Suggest a name for my trading agent..."
+                            systemPrompt="You are a naming expert who helps users find creative, memorable names for AI trading agents. Keep names short, catchy, and relevant to trading/finance."
+                            streamingEnabled={true}
+                            apiEndpoint="http://localhost:3002/api/proxy/ai-chat"
+                          />
+                        </div>
+                      </div>
                     </div>
                     
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="enableTwitter"
-                        className="mr-2"
-                        checked={agentConfig.clients.twitter}
-                        onChange={(e) => {
-                          setAgentConfig({
-                            ...agentConfig, 
-                            clients: {
-                              ...agentConfig.clients,
-                              twitter: e.target.checked
-                            },
-                            enableTwitter: e.target.checked
-                          });
-                        }}
-                      />
-                      <label htmlFor="enableTwitter" className="text-white/70 text-xs flex items-center">
-                        <XLogo className="w-3 h-3 mr-1 text-white/70" /> X
-                      </label>
+
+
+                    
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Description</label>
+                      <div className="relative">
+                        <textarea 
+                          className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 pr-10 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 resize-none transition-all duration-200"
+                          rows={3}
+                          placeholder="e.g. A trading agent specializing in cryptocurrency analysis and trading strategies"
+                          value={agentConfig.description}
+                          onChange={(e) => setAgentConfig({...agentConfig, description: e.target.value})}
+                        />
+                        <div className="absolute right-3 top-6">
+                          <SparkleButton 
+                            onSubmit={(value) => setAgentConfig({...agentConfig, description: value})} 
+                            placeholder="Write a description for my trading agent..."
+                            systemPrompt="You are a professional AI copywriter who specializes in writing concise, compelling descriptions for trading agents. Focus on highlighting the agent's value proposition in 1-2 sentences."
+                            streamingEnabled={true}
+                            apiEndpoint="http://localhost:3002/api/proxy/ai-chat"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Client Integrations</label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-black/10 p-3 rounded-lg">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="enableDiscord"
+                            className="mr-2"
+                            checked={agentConfig.clients.discord}
+                            onChange={(e) => setAgentConfig({
+                              ...agentConfig, 
+                              clients: {
+                                ...agentConfig.clients,
+                                discord: e.target.checked
+                              }
+                            })}
+                          />
+                          <label htmlFor="enableDiscord" className="text-white/90 text-sm flex items-center">
+                            <DiscordLogo className="w-4 h-4 mr-2 text-white/90" /> Discord
+                          </label>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="enableTwitter"
+                            className="mr-2"
+                            checked={agentConfig.clients.twitter}
+                            onChange={(e) => {
+                              setAgentConfig({
+                                ...agentConfig, 
+                                clients: {
+                                  ...agentConfig.clients,
+                                  twitter: e.target.checked
+                                },
+                                enableTwitter: e.target.checked
+                              });
+                            }}
+                          />
+                          <label htmlFor="enableTwitter" className="text-white/90 text-sm flex items-center">
+                            <XLogo className="w-4 h-4 mr-2 text-white/90" /> Twitter/X
+                          </label>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="enableTelegram"
+                            className="mr-2"
+                            checked={agentConfig.clients.telegram}
+                            onChange={(e) => setAgentConfig({
+                              ...agentConfig, 
+                              clients: {
+                                ...agentConfig.clients,
+                                telegram: e.target.checked
+                              }
+                            })}
+                          />
+                          <label htmlFor="enableTelegram" className="text-white/90 text-sm">Telegram</label>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="enableSlack"
+                            className="mr-2"
+                            checked={agentConfig.clients.slack}
+                            onChange={(e) => setAgentConfig({
+                              ...agentConfig, 
+                              clients: {
+                                ...agentConfig.clients,
+                                slack: e.target.checked
+                              }
+                            })}
+                          />
+                          <label htmlFor="enableSlack" className="text-white/90 text-sm">Slack</label>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="enableDirect"
+                            className="mr-2"
+                            checked={agentConfig.clients.direct}
+                            onChange={(e) => setAgentConfig({
+                              ...agentConfig, 
+                              clients: {
+                                ...agentConfig.clients,
+                                direct: e.target.checked
+                              }
+                            })}
+                          />
+                          <label htmlFor="enableDirect" className="text-white/90 text-sm">Direct Chat</label>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="enableSimsAI"
+                            className="mr-2"
+                            checked={agentConfig.clients.simsai}
+                            onChange={(e) => setAgentConfig({
+                              ...agentConfig, 
+                              clients: {
+                                ...agentConfig.clients,
+                                simsai: e.target.checked
+                              }
+                            })}
+                          />
+                          <label htmlFor="enableSimsAI" className="text-white/90 text-sm">SimsAI</label>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+                
+                {/* Step 2: Personality & Knowledge - Only visible in step 2 */}
+                {currentStep === 2 && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Personality</label>
+                      <div className="relative">
+                        <textarea 
+                          className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 pr-10 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 resize-none transition-all duration-200"
+                          rows={4}
+                          placeholder="Describe your agent's trading personality and strategy in detail. Include their approach to risk, preferred markets, analysis style, and any specialized knowledge."
+                          value={agentConfig.personality}
+                          onChange={(e) => setAgentConfig({...agentConfig, personality: e.target.value})}
+                        />
+                        <div className="absolute right-3 top-6">
+                          <SparkleButton 
+                            onSubmit={(value) => setAgentConfig({...agentConfig, personality: value})} 
+                            placeholder="Create a personality for my trading agent..."
+                            apiEndpoint="http://localhost:3002/api/proxy/ai-chat"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-white/70 text-sm mb-2">Memory Settings</label>
+                        <div className="space-y-2 bg-black/10 p-3 rounded-lg">
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id="enableRagKnowledge"
+                              className="mr-2"
+                              checked={agentConfig.memorySettings.enableRagKnowledge}
+                              onChange={(e) => setAgentConfig({
+                                ...agentConfig,
+                                memorySettings: {
+                                  ...agentConfig.memorySettings,
+                                  enableRagKnowledge: e.target.checked
+                                }
+                              })}
+                            />
+                            <label htmlFor="enableRagKnowledge" className="text-white/90 text-sm">Enable RAG Knowledge</label>
+                          </div>
+                          
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              id="enableLoreMemory"
+                              className="mr-2"
+                              checked={agentConfig.memorySettings.enableLoreMemory}
+                              onChange={(e) => setAgentConfig({
+                                ...agentConfig,
+                                memorySettings: {
+                                  ...agentConfig.memorySettings,
+                                  enableLoreMemory: e.target.checked
+                                }
+                              })}
+                            />
+                            <label htmlFor="enableLoreMemory" className="text-white/90 text-sm">Enable Lore Memory</label>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-white/70 text-sm mb-2">Topics of Expertise</label>
+                        <div className="relative">
+                          <textarea 
+                            className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 pr-10 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 resize-none transition-all duration-200"
+                            rows={4}
+                            placeholder="Enter topics your agent is knowledgeable about, one per line (e.g., Technical Analysis, Cryptocurrency, Risk Management)"
+                            value={agentConfig.topics?.join('\n') || ''}
+                            onChange={(e) => {
+                              const topics = e.target.value.split('\n').filter(t => t.trim() !== '');
+                              setAgentConfig({...agentConfig, topics});
+                            }}
+                          />
+                          <div className="absolute right-3 top-6">
+                            <SparkleButton 
+                              onSubmit={(value) => {
+                                const topics = value.split(',').map(t => t.trim()).filter(t => t !== '');
+                                setAgentConfig({...agentConfig, topics});
+                              }} 
+                              placeholder="Suggest expertise topics for my trading agent..."
+                              apiEndpoint="http://localhost:3002/api/proxy/ai-chat"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 3: Tokenize - Only visible in step 3 */}
+                {currentStep === 3 && (
+                  <div className="space-y-4">
+
+                    
+                    <div>
+                      <label className="block text-white/70 text-sm mb-2">Tokenization Settings</label>
+                      <div className="bg-black/10 p-4 rounded-lg space-y-4">
+                        <div>
+                          <label className="block text-white/70 text-sm mb-2">Ticker Symbol</label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 pr-10 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
+                              placeholder="e.g. ALPH (max 5 characters)"
+                              maxLength={5}
+                              value={agentConfig.ticker}
+                              onChange={(e) => setAgentConfig({...agentConfig, ticker: e.target.value.toUpperCase()})}
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <SparkleButton 
+                                onSubmit={(value) => setAgentConfig({...agentConfig, ticker: value.toUpperCase().substring(0, 5)})} 
+                                placeholder="Suggest a ticker symbol for my agent..."
+                                apiEndpoint="http://localhost:3002/api/proxy/ai-chat"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-white/50 text-xs mt-1">The ticker symbol for your agent's token</p>
+                        </div>
+                        <div>
+                          <label className="block text-white/70 text-sm mb-2">Initial Token Supply</label>
+                          <input 
+                            type="number" 
+                            className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
+                            placeholder="e.g. 1000000"
+                            min="1000"
+                            max="10000000"
+                            value={agentConfig.initialTokenSupply || 1000000}
+                            onChange={(e) => setAgentConfig({...agentConfig, initialTokenSupply: parseInt(e.target.value)})}
+                          />
+                          <p className="text-white/50 text-xs mt-1">The initial supply of tokens for your agent (1,000 - 10,000,000)</p>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-white/70 text-sm mb-2">Token Distribution</label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-white/70 text-xs mb-1">Creator Share (%)</label>
+                              <input 
+                                type="number" 
+                                className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
+                                placeholder="e.g. 20"
+                                min="0"
+                                max="100"
+                                value={agentConfig.creatorShare || 20}
+                                onChange={(e) => setAgentConfig({...agentConfig, creatorShare: parseInt(e.target.value)})}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-white/70 text-xs mb-1">Liquidity Pool (%)</label>
+                              <input 
+                                type="number" 
+                                className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
+                                placeholder="e.g. 80"
+                                min="0"
+                                max="100"
+                                value={agentConfig.liquidityShare || 80}
+                                onChange={(e) => setAgentConfig({...agentConfig, liquidityShare: parseInt(e.target.value)})}
+                              />
+                            </div>
+                          </div>
+                          <p className="text-white/50 text-xs mt-1">Total must equal 100%</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Step 4: Review & Create - Only visible in step 4 */}
+                {currentStep === 4 && (
+                  <div className="space-y-4">
+                    <div className="bg-black/10 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-3">Agent Configuration Summary</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h4 className="text-white/70 text-sm font-semibold mb-2">Basic Information</h4>
+                          <ul className="space-y-1 text-sm">
+                            <li><span className="text-white/50">Name:</span> {agentConfig.name || 'Not set'}</li>
+                            <li><span className="text-white/50">Ticker:</span> {agentConfig.ticker || 'Not set'}</li>
+                            <li><span className="text-white/50">Description:</span> {agentConfig.description ? `${agentConfig.description.substring(0, 30)}${agentConfig.description.length > 30 ? '...' : ''}` : 'Not set'}</li>
+                          </ul>
+                        </div>
+                        
+                        <div>
+                          <h4 className="text-white/70 text-sm font-semibold mb-2">Integrations</h4>
+                          <ul className="space-y-1 text-sm">
+                            <li>
+                              <span className="text-white/50">Clients:</span> {
+                                Object.entries(agentConfig.clients)
+                                  .filter(([_, enabled]) => enabled)
+                                  .map(([client]) => client)
+                                  .join(', ') || 'None'
+                              }
+                            </li>
+                            <li>
+                              <span className="text-white/50">Plugins:</span> {
+                                agentConfig.plugins.length > 0 
+                                  ? agentConfig.plugins.join(', ')
+                                  : 'None'
+                              }
+                            </li>
+                          </ul>
+                        </div>
+                        
+
+                        
+                        <div>
+                          <h4 className="text-white/70 text-sm font-semibold mb-2">Tokenization</h4>
+                          <ul className="space-y-1 text-sm">
+                            <li><span className="text-white/50">Initial Supply:</span> {agentConfig.initialTokenSupply?.toLocaleString() || '1,000,000'}</li>
+                            <li><span className="text-white/50">Creator Share:</span> {agentConfig.creatorShare || 20}%</li>
+                            <li><span className="text-white/50">Liquidity Pool:</span> {agentConfig.liquidityShare || 80}%</li>
+                          </ul>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <h4 className="text-white/70 text-sm font-semibold mb-2">Description</h4>
+                        <p className="text-sm bg-black/20 p-2 rounded">{agentConfig.description || 'No description provided'}</p>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <h4 className="text-white/70 text-sm font-semibold mb-2">Personality</h4>
+                        <p className="text-sm bg-black/20 p-2 rounded">{agentConfig.personality || 'No personality defined'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             
-            {/* Create Button */}
-            <div className="flex justify-center mt-4">
-              <Button
-                className="w-full bg-gradient-to-r from-[#D4C6A1] to-[#BFB28F] hover:from-[#BFB28F] hover:to-[#D4C6A1] text-black font-semibold py-3 rounded-lg transition-all duration-300 flex items-center justify-center gap-2"
-                onClick={createAgent}
-                disabled={isCreating}
+            {/* Wizard Navigation */}
+            <div className="flex justify-between mt-6">
+              <button 
+                onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
+                className={`flex items-center px-5 py-2.5 rounded-lg transition-all duration-200 ${currentStep === 1 ? 'text-white/30 cursor-not-allowed' : 'text-white bg-black/20 hover:bg-black/30'}`}
+                disabled={currentStep === 1}
               >
-                {isCreating ? 'Creating...' : 'Create & Launch Agent'}
-              </Button>
+                <ChevronLeft className="w-4 h-4 mr-2" /> Back
+              </button>
+              
+              {currentStep < totalSteps ? (
+                <button 
+                  onClick={nextStep}
+                  className="flex items-center px-5 py-2.5 rounded-lg bg-[#D4C6A1]/80 text-black hover:bg-[#D4C6A1] transition-all duration-200 font-medium"
+                >
+                  Next <ChevronRight className="w-4 h-4 ml-2" />
+                </button>
+              ) : (
+                <button 
+                  onClick={createAgent}
+                  className="flex items-center px-6 py-2.5 rounded-lg bg-[#D4C6A1] text-black hover:bg-[#BFB28F] transition-all duration-200 font-medium"
+                  disabled={isCreating}
+                >
+                  {isCreating ? 'Creating...' : 'Create Agent'} <Check className="w-4 h-4 ml-2" />
+                </button>
+              )}
             </div>
             
+            {/* Step Indicator */}
+            <div className="flex justify-center mt-4">
+              {Array.from({length: totalSteps}, (_, i) => i + 1).map(step => (
+                <div 
+                  key={step}
+                  className={`w-2.5 h-2.5 rounded-full mx-1.5 transition-all duration-300 ${currentStep === step ? 'bg-[#D4C6A1]' : 'bg-white/20'}`}
+                  onClick={() => setCurrentStep(step)}
+                  style={{cursor: 'pointer'}}
+                />
+              ))}
+            </div>
+            
+            {/* Validation Error */}
+            {validationError && (
+              <div className="mt-3 text-red-400 text-sm bg-red-400/10 p-2 rounded-lg border border-red-400/20 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                {validationError}
+              </div>
+            )}
+            
+            {/* Creation Error */}
             {creationError && (
               <div className="mt-2 text-red-500 text-sm">
                 {creationError}
@@ -758,52 +1113,7 @@ const CreateAgent: React.FC = () => {
           </GlassCardContent>
         </GlassCard>
         
-        {/* Chat Interface - Now full width and taller */}
-        <GlassCard className="w-full h-[600px]" noHoverEffect={true}>
-          <GlassCardContent className="p-4 h-full flex flex-col">
-            <h2 className="text-xl font-semibold mb-4">Chat Preview</h2>
-            
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar" ref={chatContainerRef}>
-              {messages.map((message, index) => (
-                <div 
-                  key={index} 
-                  className={`mb-4 ${message.role === 'user' ? 'text-right' : 'text-left'}`}
-                >
-                  <div 
-                    className={`inline-block max-w-[80%] rounded-lg px-4 py-2 ${
-                      message.role === 'user' 
-                        ? 'bg-[#D4C6A1]/20 text-white' 
-                        : 'bg-black/20 text-white'
-                    }`}
-                  >
-                    <p>{message.content}</p>
-                    <span className="text-xs text-white/50 block mt-1">
-                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="mt-4 flex">
-              <input 
-                type="text" 
-                className="flex-1 bg-black/20 border border-white/10 text-white rounded-l-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50"
-                placeholder="Type a message..."
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <Button 
-                variant="secondary" 
-                className="bg-[#D4C6A1]/20 hover:bg-[#D4C6A1]/30 text-[#D4C6A1] border border-[#D4C6A1]/30 rounded-r-lg px-4"
-                onClick={handleSendMessage}
-              >
-                <Send className="h-5 w-5" />
-              </Button>
-            </div>
-          </GlassCardContent>
-        </GlassCard>
+
         
         {/* Advanced Configuration - Only shown in advanced mode */}
         {advancedMode && (

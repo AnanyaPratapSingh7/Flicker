@@ -160,7 +160,7 @@ app.delete('/agents/:id', async (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3004;
 app.listen(PORT, () => {
   logger.info(`Agent Manager running on port ${PORT}`);
 });
