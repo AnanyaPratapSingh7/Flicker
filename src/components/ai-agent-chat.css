@@ -1,0 +1,55 @@
+/* 
+ * AI Agent Chat Component Styles
+ * Combines agent preview card with AI chat component
+ */
+
+.ai-agent-chat-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+.agent-preview-wrapper {
+  width: 100%;
+  margin-bottom: 0;
+  z-index: 10;
+}
+
+.ai-chat-wrapper {
+  width: 100%;
+  margin-top: -1px; /* Creates seamless connection with the agent card */
+  z-index: 5;
+}
+
+.chat-button-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+  padding: 0.5rem;
+}
+
+.open-chat-button {
+  background-color: rgba(251, 191, 36, 0.8);
+  color: white;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+  transition: all 0.2s ease;
+}
+
+.open-chat-button:hover {
+  background-color: rgba(251, 191, 36, 1);
+  transform: translateY(-1px);
+}
+
+/* For screens smaller than 640px */
+@media (max-width: 640px) {
+  .ai-agent-chat-container {
+    max-width: 100%;
+    padding: 0 1rem;
+  }
+}

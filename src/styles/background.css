@@ -1,0 +1,12 @@
+/**
+ * Background styles
+ */
+
+/* Base background styling */
+.bg-bg8 {
+  background: rgb(11,11,11);
+  background: radial-gradient(circle, rgba(11,11,11,1) 0%, rgba(15,9,1,1) 45%, rgba(17,14,0,1) 53%, rgba(0,0,0,1) 100%);
+}
+
+/* No need for responsive images or webp fallbacks with a gradient */
+

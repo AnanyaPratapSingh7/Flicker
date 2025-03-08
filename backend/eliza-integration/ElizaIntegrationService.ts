@@ -36,7 +36,7 @@ export class ElizaIntegrationService extends EventEmitter {
       path.resolve(process.cwd(), '../eliza-main');
       
     this.elizaApiBaseUrl = options.elizaApiBaseUrl || 
-      'http://localhost:3000';
+      'http://localhost:3002';
       
     this.characterPath = options.characterPath || 
       path.resolve(this.elizaRuntimePath, 'characters');

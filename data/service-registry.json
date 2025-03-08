@@ -1,0 +1,15 @@
+{
+  "openrouter-proxy": {
+    "url": "http://localhost:3003",
+    "health": "http://localhost:3003/api/ai-chat/ping",
+    "metadata": {
+      "version": "1.0.0",
+      "endpoints": {
+        "aiChat": "/api/ai-chat",
+        "legacyAiChat": "/api/proxy/ai-chat",
+        "health": "/api/ai-chat/ping"
+      }
+    },
+    "lastRegistered": "2025-03-08T11:25:19.668Z"
+  }
+}

@@ -10,13 +10,20 @@ export default defineConfig({
     viteTsconfigPaths(),
   ],
   server: {
-    port: 3000,
+    port: 3004,
     open: true,
+    hmr: {
+      overlay: false // Disable error overlay to prevent issues with URI errors
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3005',
         changeOrigin: true,
         secure: false,
+        rewrite: (path) => {
+          // Safely handle path without using decodeURI to prevent URI malformed errors
+          return path.replace(/^\/api/, '');
+        }
       }
     }
   },
