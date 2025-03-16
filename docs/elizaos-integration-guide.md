@@ -1,103 +1,248 @@
 # ElizaOS Integration Guide for Paradyze V2
 
-This guide explains how to set up and use the ElizaOS integration in Paradyze V2. The integration allows you to create and manage trading AI agents powered by ElizaOS.
+This comprehensive guide explains how to set up, configure, and use the ElizaOS integration in Paradyze V2. It documents the working architecture and provides detailed troubleshooting steps to ensure reliable operation.
 
-## Setup Overview
+## Architecture Overview
 
-The Paradyze V2 integration with ElizaOS consists of three main components:
+The Paradyze V2 integration with ElizaOS follows a REST API approach with these components:
 
-1. **ElizaOS Runtime**: The core ElizaOS system that powers the AI agents
-2. **Integration Service**: A middleware layer that manages communication between Paradyze V2 and ElizaOS
-3. **Frontend Components**: React components that interact with the Integration Service
+```
+┌────────────────┐    ┌───────────────────┐    ┌─────────────────┐
+│                │    │                   │    │                 │
+│  Frontend      │───►│ Integration API   │───►│ ElizaOS Runtime │
+│  (Port 3004)   │◄───│ (Port 3006)       │◄───│ (Port 3001)     │
+│                │    │                   │    │                 │
+└────────────────┘    └───────────────────┘    └─────────────────┘
+```
+
+### Components and Port Configuration
+
+1. **ElizaOS Runtime** (Port 3001)
+   - Core AI engine that powers the agents
+   - Handles model selection and message processing
+   - Manages agent state and memory
+
+2. **Integration API** (Port 3006)
+   - REST API middleware between frontend and ElizaOS
+   - Manages agent lifecycle (creation, deletion)
+   - Handles message passing and formatting
+
+3. **Frontend** (Port 3004)
+   - React-based user interface
+   - Chat components for agent interaction
+   - Agent creation and management UI
+
+4. **OpenRouter Proxy** (Port 3005)
+   - Handles AI model API requests
+   - Provides access to various AI models
+
+5. **Service Registry** (Port 3999)
+   - Optional service for service discovery
+   - Helps components find each other
 
 ## Prerequisites
 
 - Node.js 23.3.0 or later
-- pnpm (recommended) or npm
-- OpenAI API key (for the AI models) or OpenRouter API key
-- Twitter API credentials (for social media integration)
+- npm or pnpm (recommended)
+- OpenRouter API key (recommended) or OpenAI API key
+- Twitter API credentials (optional, for social media integration)
 
-## Installation Steps
+## Installation and Setup
 
-### 1. ElizaOS Runtime Setup
+### 1. Directory Structure
 
-ElizaOS is the core engine that powers the trading agents. Follow these steps to set it up:
+Ensure your project has the following structure:
+
+```
+paradyzev2/
+├── backend/
+│   ├── eliza-main/               # Core ElizaOS repository
+│   │   ├── characters/           # Character templates
+│   │   └── ...                   
+│   └── eliza-integration/        # Integration service
+│       ├── ElizaIntegrationService.ts
+│       ├── api.ts
+│       └── ...
+├── docs/                         # Documentation
+├── src/                          # Frontend code
+└── ...
+```
+
+### 2. ElizaOS Runtime Setup
 
 ```bash
-# Clone the ElizaOS repository
+# Clone the ElizaOS repository if not already present
 git clone git@github.com:elizaos/eliza.git backend/eliza-main
 
 # Configure environment variables
 cd backend/eliza-main
 cp .env.example .env
-
-# Edit .env and add your API key (OpenAI or OpenRouter)
-# OPENAI_API_KEY=your_key_here
-# or
-# OPENROUTER_API_KEY=your_key_here
 ```
 
-### 2. Model Provider Configuration
+Edit the `.env` file with the following configuration:
 
-ElizaOS supports multiple model providers. For enhanced flexibility, you can use OpenRouter to access various models:
+```
+# Service Configuration
+ELIZAOS_PORT=3001
+ELIZAOS_MODE=development
 
-```bash
-# Add to your .env file in backend/eliza-main
+# OpenRouter Configuration
 OPENROUTER_API_KEY=your_openrouter_api_key
 OPENROUTER_MODEL=openai/gpt-4o-mini
-SMALL_OPENROUTER_MODEL=openai/gpt-4o-mini
-MEDIUM_OPENROUTER_MODEL=openai/gpt-4o-mini
-LARGE_OPENROUTER_MODEL=openai/gpt-4o-mini
 DEFAULT_MODEL_PROVIDER=openrouter
+
+# AI-specific variables (required for proper model access)
+AI_OPENROUTER_API_KEY=your_openrouter_api_key
+AI_OPENROUTER_MODEL=openai/gpt-4o-mini
 ```
 
-The above configuration sets OpenRouter as the default provider and configures all model classes (SMALL, MEDIUM, LARGE) to use the gpt-4o-mini model.
+> **IMPORTANT**: The `AI_OPENROUTER_API_KEY` variable is critical. ElizaOS specifically looks for variables with the `AI_` prefix when accessing model providers.
 
-### 3. Install Integration Service Dependencies
+### 3. Integration Service Setup
 
 ```bash
+# Navigate to the integration service directory
 cd ../eliza-integration
+
+# Create environment file
 cp .env.example .env
+```
+
+Edit the `.env` file with the following configuration:
+
+```
+# Integration Service Configuration
+INTEGRATION_PORT=3006
+ELIZAOS_INTEGRATION_MODE=api
+
+# ElizaOS Connection
+ELIZAOS_PORT=3001
+
+# OpenRouter Configuration (for reference)
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_MODEL=openai/gpt-4o-mini
+
+# App settings
+APP_URL=http://localhost:3004
+NODE_ENV=development
+```
+
+Install dependencies:
+
+```bash
 npm install
 ```
 
-### 4. Start the Integration Service
+### 4. Frontend Configuration
+
+Ensure your `vite.config.ts` has the correct port and proxy settings:
+
+```typescript
+export default defineConfig({
+  // ...other config
+  server: {
+    port: 3004,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3006',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  },
+  // ...other config
+});
+```
+
+## Starting the Services
+
+Start the services in the following order:
+
+### 1. Start ElizaOS Runtime
+
+```bash
+cd backend/eliza-main
+npm start
+```
+
+Or use the provided script:
+
+```bash
+node start-elizaos.js
+```
+
+### 2. Start Integration Service
+
+```bash
+cd backend/eliza-integration
+npm run dev
+```
+
+### 3. Start OpenRouter Proxy (if needed)
+
+```bash
+node local-openrouter-server.js
+```
+
+### 4. Start Frontend
 
 ```bash
 npm run dev
 ```
 
-This will start the integration API service on port 3001 (or the port specified in your .env file).
+Alternatively, you can use the development manager script to start all services (except ElizaOS):
+
+```bash
+node paradyze-dev.js
+```
+
+## Integration Service Implementation
+
+The integration service uses a REST API approach to communicate with ElizaOS. This is more reliable than direct library imports because:
+
+1. It properly decouples your integration service from ElizaOS's internal implementation
+2. It doesn't depend on the module system (ESM vs CommonJS) of the ElizaOS codebase
+3. It uses stable HTTP interfaces instead of direct library imports
+
+### Key Files
+
+1. **ElizaIntegrationService.ts**
+   - Core service that manages communication with ElizaOS
+   - Handles starting/stopping the ElizaOS runtime
+   - Manages agent creation and messaging
+
+2. **api.ts**
+   - Express server that exposes REST endpoints
+   - Routes requests to the ElizaIntegrationService
+   - Handles error handling and response formatting
+
+### REST API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/eliza/start` | POST | Start the ElizaOS runtime |
+| `/api/eliza/stop` | POST | Stop the ElizaOS runtime |
+| `/api/eliza/status` | GET | Check if ElizaOS is running |
+| `/api/agents` | POST | Create a new agent |
+| `/api/agents` | GET | List all agents |
+| `/api/agents/:agentId` | GET | Get agent details |
+| `/api/agents/:agentId` | DELETE | Delete an agent |
+| `/api/agents/:agentId/messages` | POST | Send a message to an agent |
+| `/api/agents/:agentId/message` | POST | Alternative endpoint for sending messages |
+| `/api/agents/:agentId/messages` | GET | Get conversation history |
+| `/api/agents/:agentId/twitter/enable` | POST | Enable Twitter for an agent |
+| `/api/agents/:agentId/twitter/tweet` | POST | Post a tweet via an agent |
+| `/api/agents/:agentId/model-provider` | POST | Set the agent's model provider |
 
 ## Using the Integration
 
-### Starting ElizaOS
-
-Before using the agents, you need to start the ElizaOS runtime:
+### Creating an Agent
 
 ```typescript
-// In your React component or service
-import axios from 'axios';
-
-const startElizaOS = async () => {
-  try {
-    const response = await axios.post('http://localhost:3001/api/eliza/start');
-    console.log('ElizaOS started:', response.data);
-  } catch (error) {
-    console.error('Failed to start ElizaOS:', error);
-  }
-};
-
-// Call this function when initializing your application
-startElizaOS();
-```
-
-### Creating a Trading Agent
-
-```typescript
+// Example: Create a trading agent
 const createAgent = async () => {
   try {
-    const response = await axios.post('http://localhost:3001/api/agents', {
+    const response = await axios.post('http://localhost:3006/api/agents', {
       templateName: 'trading-agent', // Uses trading-agent.character.json template
       name: 'My Trading Assistant',
       description: 'Specialized in crypto market analysis'
@@ -112,106 +257,13 @@ const createAgent = async () => {
 };
 ```
 
-### Agent Creation Interface
-
-The Paradyze V2 platform provides a streamlined user interface for creating trading agents. The interface is designed to be intuitive and user-friendly while still allowing for powerful agent customization.
-
-#### Interface Layout
-
-The agent creation interface features a two-column layout:
-
-1. **Left Column**: Agent configuration form with preview card
-2. **Right Column**: Chat preview interface to test interaction with the agent
-
-#### Agent Configuration Fields
-
-The agent creation interface now requires and processes the following fields:
-
-1. **Required Base Fields**:
-   - `name`: The display name for the agent
-   - `description`: A brief summary of the agent's purpose
-   - `personality`: A comprehensive description of the agent's characteristics
-
-2. **Required Character Fields** (automatically generated from personality):
-   - `lore`: Array of background statements about the agent
-   - `topics`: Array of subjects the agent is knowledgeable about
-   - `adjectives`: Array of character traits
-   - `messageExamples`: Array of example interactions
-   - `postExamples`: Array of example social media posts
-
-3. **Memory Settings**:
-   - `enableRagKnowledge`: Enable RAG-based knowledge retrieval
-   - `enableLoreMemory`: Enable character lore memory
-   - `enableDescriptionMemory`: Enable description-based memory
-   - `enableDocumentsMemory`: Enable document-based memory
-
-#### Personality Parsing
-
-The system automatically parses the personality text to generate required character fields:
+### Sending Messages
 
 ```typescript
-const parsedCharacter = {
-  lore: ["A trading agent focused on market analysis"],
-  topics: ["trading", "market analysis", "investment strategies"],
-  adjectives: ["analytical", "data-driven", "strategic"],
-  messageExamples: [[
-    {
-      user: "user1",
-      content: { text: "What's your trading strategy?" },
-      response: "As [AgentName], I [Description]"
-    }
-  ]],
-  postExamples: [
-    "Market analysis update: [Analysis]",
-    "Trading insight: [Strategy]"
-  ]
-};
-```
-
-#### Example Personality Text
-
-```
-Analytical and data-driven with a focus on technical analysis. 
-Provides clear entry and exit points for trades. 
-Risk-conscious but willing to take calculated risks when the reward potential is high. 
-Specializes in cryptocurrency markets with emphasis on Bitcoin and major altcoins.
-```
-
-This text will be automatically parsed to extract:
-- Topics (e.g., "technical analysis", "cryptocurrency markets")
-- Adjectives (e.g., "analytical", "data-driven", "risk-conscious")
-- Lore (remaining contextual statements)
-
-#### Client Integration
-
-Users can select which platforms the agent should be available on:
-- Direct Chat (enabled by default)
-- Twitter
-
-#### Random Agent Generation
-
-The interface includes a "Generate Random" button that creates a pre-configured agent with randomized:
-- Name
-- Ticker
-- Description
-- Personality
-
-This feature allows users to quickly create diverse agent templates that can be further customized.
-
-#### Backend Processing
-
-When a user submits the agent creation form, the backend:
-1. Receives the simplified agent configuration
-2. Parses the personality field to generate detailed character attributes
-3. Creates the agent using the ElizaOS framework
-4. Returns the agent ID and connection details
-
-### Sending Messages to an Agent
-
-```typescript
-const sendMessage = async (agentId: string, message: string, userId: string) => {
+// Example: Send a message to an agent
+const sendMessage = async (agentId, message, userId = 'user') => {
   try {
-    const response = await axios.post(`http://localhost:3001/api/agents/${agentId}/messages`, {
+    const response = await axios.post(`http://localhost:3006/api/agents/${agentId}/messages`, {
       message,
       userId
     });
@@ -225,12 +277,13 @@ const sendMessage = async (agentId: string, message: string, userId: string) => 
 };
 ```
 
-### Enabling Twitter Integration for an Agent
+### Enabling Twitter Integration
 
 ```typescript
-const enableTwitter = async (agentId: string) => {
+// Example: Enable Twitter for an agent
+const enableTwitter = async (agentId) => {
   try {
-    await axios.post(`http://localhost:3001/api/agents/${agentId}/twitter/enable`);
+    await axios.post(`http://localhost:3006/api/agents/${agentId}/twitter/enable`);
     console.log('Twitter integration enabled for agent');
   } catch (error) {
     console.error('Failed to enable Twitter:', error);
@@ -238,12 +291,13 @@ const enableTwitter = async (agentId: string) => {
 };
 ```
 
-### Posting a Tweet via an Agent
+### Posting a Tweet
 
 ```typescript
-const postTweet = async (agentId: string, content: string) => {
+// Example: Post a tweet via an agent
+const postTweet = async (agentId, content) => {
   try {
-    const response = await axios.post(`http://localhost:3001/api/agents/${agentId}/twitter/tweet`, {
+    const response = await axios.post(`http://localhost:3006/api/agents/${agentId}/twitter/tweet`, {
       content
     });
     
@@ -255,589 +309,279 @@ const postTweet = async (agentId: string, content: string) => {
 };
 ```
 
-## API Reference
-
-### ElizaOS Runtime Management
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/eliza/start` | POST | Start the ElizaOS runtime |
-| `/api/eliza/stop` | POST | Stop the ElizaOS runtime |
-| `/api/eliza/status` | GET | Check if ElizaOS is running |
-
-### Agent Management
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/agents` | POST | Create a new agent |
-| `/api/agents` | GET | List all agents |
-| `/api/agents/:agentId` | DELETE | Delete an agent |
-
-### Messaging
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/agents/:agentId/messages` | POST | Send a message to an agent |
-| `/api/agents/:agentId/messages` | GET | Get conversation history |
-
-### Twitter Integration
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/agents/:agentId/twitter/enable` | POST | Enable Twitter for an agent |
-| `/api/agents/:agentId/twitter/tweet` | POST | Post a tweet via an agent |
-
-## Chat Implementation
-
-The chat functionality in Paradyze V2 is built on top of the ElizaOS messaging system, configured to use OpenRouter with gpt-4o-mini for optimal performance and cost efficiency.
-
-### Backend Chat Implementation
-
-The backend chat implementation handles message passing between the user and the ElizaOS agent:
-
-```typescript
-// backend/eliza-integration/services/ChatService.ts
-import { AgentRuntime } from '@ai16z/eliza';
-import { MessageManager } from './MessageManager';
-
-export class ChatService {
-  private agentRuntime: AgentRuntime;
-  private messageManager: MessageManager;
-
-  constructor(agentRuntime: AgentRuntime) {
-    this.agentRuntime = agentRuntime;
-    this.messageManager = new MessageManager();
-  }
-
-  async sendMessage(userId: string, agentId: string, message: string) {
-    try {
-      // Store the user message
-      await this.messageManager.storeMessage({
-        userId,
-        agentId,
-        role: 'user',
-        content: message,
-        timestamp: new Date()
-      });
-
-      // Process the message using ElizaOS
-      const response = await this.agentRuntime.processMessage({
-        message,
-        userId,
-        modelClass: 'MEDIUM' // Uses MEDIUM_OPENROUTER_MODEL (gpt-4o-mini)
-      });
-
-      // Store the agent's response
-      await this.messageManager.storeMessage({
-        userId,
-        agentId,
-        role: 'assistant',
-        content: response.content,
-        timestamp: new Date()
-      });
-
-      return response;
-    } catch (error) {
-      console.error('Error processing message:', error);
-      throw error;
-    }
-  }
-
-  async getConversationHistory(userId: string, agentId: string, limit = 50) {
-    return this.messageManager.getMessages(userId, agentId, limit);
-  }
-}
-```
-
-### REST API Endpoint
-
-The chat functionality is exposed through a REST API endpoint:
-
-```typescript
-// backend/eliza-integration/api.ts
-import express from 'express';
-import { ChatService } from './services/ChatService';
-
-const router = express.Router();
-const chatService = new ChatService(agentRuntime);
-
-// Send a message to an agent
-router.post('/agents/:agentId/messages', async (req, res) => {
-  try {
-    const { agentId } = req.params;
-    const { message, userId } = req.body;
-
-    if (!message || !userId) {
-      return res.status(400).json({ error: 'Message and userId are required' });
-    }
-
-    const response = await chatService.sendMessage(userId, agentId, message);
-    
-    return res.status(200).json({ response });
-  } catch (error) {
-    console.error('Error sending message:', error);
-    return res.status(500).json({ error: 'Failed to send message' });
-  }
-});
-
-// Get conversation history
-router.get('/agents/:agentId/messages', async (req, res) => {
-  try {
-    const { agentId } = req.params;
-    const { userId, limit } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
-
-    const messages = await chatService.getConversationHistory(
-      userId as string, 
-      agentId, 
-      limit ? parseInt(limit as string) : 50
-    );
-    
-    return res.status(200).json({ messages });
-  } catch (error) {
-    console.error('Error getting messages:', error);
-    return res.status(500).json({ error: 'Failed to get messages' });
-  }
-});
-
-export default router;
-```
-
-### Frontend Chat Implementation
-
-The frontend chat implementation uses React hooks to manage the chat state and communicate with the API:
-
-```tsx
-// frontend/src/hooks/useChat.ts
-import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-}
-
-export const useChat = (agentId: string, userId: string) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch conversation history
-  const fetchMessages = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const response = await axios.get(`/api/agents/${agentId}/messages`, {
-        params: { userId }
-      });
-      setMessages(response.data.messages);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load conversation history');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [agentId, userId]);
-
-  // Send a message
-  const sendMessage = useCallback(async (content: string) => {
-    try {
-      setIsLoading(true);
-      
-      // Optimistically update UI
-      const tempUserMessage: Message = {
-        id: `temp-${Date.now()}`,
-        role: 'user',
-        content,
-        timestamp: new Date().toISOString()
-      };
-      
-      setMessages(prev => [...prev, tempUserMessage]);
-      
-      // Send message to API
-      const response = await axios.post(`/api/agents/${agentId}/messages`, {
-        message: content,
-        userId
-      });
-      
-      // Add agent response
-      const agentMessage: Message = {
-        id: `response-${Date.now()}`,
-        role: 'assistant',
-        content: response.data.response.content,
-        timestamp: new Date().toISOString()
-      };
-      
-      setMessages(prev => [...prev, agentMessage]);
-      setError(null);
-    } catch (err) {
-      setError('Failed to send message');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [agentId, userId]);
-
-  // Load initial messages
-  useEffect(() => {
-    fetchMessages();
-  }, [fetchMessages]);
-
-  return {
-    messages,
-    isLoading,
-    error,
-    sendMessage,
-    refreshMessages: fetchMessages
-  };
-};
-```
-
-### Chat Component
-
-The React component for the chat interface:
-
-```tsx
-// frontend/src/components/Chat/Chat.tsx
-import React, { useState } from 'react';
-import { useChat } from '../../hooks/useChat';
-import MessageList from './MessageList';
-import MessageInput from './MessageInput';
-import './Chat.css';
-
-interface ChatProps {
-  agentId: string;
-  userId: string;
-}
-
-const Chat: React.FC<ChatProps> = ({ agentId, userId }) => {
-  const { messages, isLoading, sendMessage } = useChat(agentId, userId);
-  const [inputValue, setInputValue] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputValue.trim() && !isLoading) {
-      sendMessage(inputValue);
-      setInputValue('');
-    }
-  };
-
-  return (
-    <div className="chat-container">
-      <div className="chat-messages">
-        <MessageList messages={messages} />
-        {isLoading && <div className="loading-indicator">Agent is typing...</div>}
-      </div>
-      
-      <form className="chat-input-form" onSubmit={handleSubmit}>
-        <MessageInput
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Type your message..."
-          disabled={isLoading}
-        />
-        <button 
-          type="submit" 
-          disabled={isLoading || !inputValue.trim()}
-          className="send-button"
-        >
-          Send
-        </button>
-      </form>
-    </div>
-  );
-};
-
-export default Chat;
-```
-
-### Model Selection for Chat
-
-The chat implementation uses the ElizaOS model selection logic to determine which AI model to use:
-
-1. API calls specify a `modelClass` parameter (SMALL, MEDIUM, or LARGE)
-2. ElizaOS maps this class to the appropriate model based on environment variables
-3. For OpenRouter, we use:
-   - `SMALL_OPENROUTER_MODEL=openai/gpt-4o-mini` - For simpler messages
-   - `MEDIUM_OPENROUTER_MODEL=openai/gpt-4o-mini` - For standard chat interactions
-   - `LARGE_OPENROUTER_MODEL=openai/gpt-4o-mini` - For complex reasoning tasks
-
-This flexible approach allows for changing models without modifying code, simply by updating environment variables.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **ElizaOS won't start**: Ensure that your API key (OpenAI or OpenRouter) is correctly set in the `.env` file in the `backend/eliza-main` directory.
-
-2. **Agent creation fails**: Check that the character template file exists and is valid JSON.
-
-3. **Twitter integration not working**: Ensure that the agent has Twitter client enabled and that your Twitter API credentials are correctly configured in ElizaOS.
-
-4. **Incorrect model being used**: ElizaOS uses a model class system (SMALL, MEDIUM, LARGE) that maps to specific models based on your configuration. If you're seeing the wrong model being used:
-   - Check the environment variables for your provider (e.g., `LARGE_OPENROUTER_MODEL`)
-   - Ensure there are no duplicate entries in your `.env` file
-   - Restart the ElizaOS server after making changes to environment variables
-
-### Logs
-
-Check the following logs for troubleshooting:
-
-- ElizaOS logs in the terminal where you started the Integration Service
-- Integration Service logs in its own terminal
-
-## Advanced Configuration
-
-### Model Selection
-
-ElizaOS categorizes models into three classes: SMALL, MEDIUM, and LARGE. When using OpenRouter, you can specify which model to use for each class:
-
-```bash
-# Specific models for different complexity levels
-SMALL_OPENROUTER_MODEL=openai/gpt-3.5-turbo
-MEDIUM_OPENROUTER_MODEL=openai/gpt-4o-mini
-LARGE_OPENROUTER_MODEL=openai/gpt-4o
-```
-
-This allows you to balance cost and performance based on the complexity of the task.
-
-For advanced configuration options, refer to the ElizaOS documentation at [https://elizaos.github.io/eliza/docs/](https://elizaos.github.io/eliza/docs/).
-
-## Contributing
-
-If you encounter issues or have suggestions for improving the ElizaOS integration, please create an issue in the Paradyze V2 repository.
-
 ## Character Configuration
 
-ElizaOS characters are defined using JSON configuration files. Here's an example of a trading assistant character:
+ElizaOS agents are defined using character templates. Here's an example of a trading agent character:
 
 ```json
 {
   "name": "Trading Assistant",
-  "bio": "I'm a financial advisor specializing in cryptocurrency trading strategies.",
-  "lore": "I was trained on extensive market data and trading patterns to help users make informed decisions about their cryptocurrency investments.",
-  "messageExamples": [
-    {
-      "role": "user",
-      "content": "What do you think about the current Bitcoin market?"
-    },
-    {
-      "role": "assistant",
-      "content": "Based on recent market data, Bitcoin is showing signs of consolidation after its recent rally. The key support levels to watch are $60,000 and $58,000, while resistance is around $65,000. Trading volume has been decreasing, which might indicate a potential move coming soon. Would you like me to analyze any specific aspects of the Bitcoin market?"
-    }
+  "description": "An AI assistant specializing in financial markets and trading insights.",
+  "system": "You are Trading Assistant. An AI assistant specializing in financial markets and trading insights.",
+  "modelProvider": "openrouter",
+  "clients": [
+    "direct", 
+    "twitter"
   ],
-  "postExamples": [
-    {
-      "title": "Market Analysis: Bitcoin's Recent Performance",
-      "content": "Bitcoin has been showing interesting patterns over the past week. After testing the $62,000 support level multiple times, it has bounced back strongly, indicating resilient buyer interest at this price point. The 4-hour chart shows a bullish divergence forming on the RSI, which could signal a potential upward movement in the coming days. Keep an eye on the $65,000 resistance level - a clean break above this with significant volume could trigger a move toward $70,000."
-    }
+  "plugins": [
+    "search",
+    "crypto",
+    "stocks"
   ],
-  "style": {
-    "tone": "professional",
-    "formality": "moderate",
-    "vocabulary": "technical",
-    "humor": "occasional"
+  "settings": {
+    "ragKnowledge": true,
+    "secrets": {},
+    "model": "openai/gpt-4o-mini"
   },
+  "lore": [
+    "A trading agent focused on market analysis",
+    "Provides clear entry and exit points for trades",
+    "Risk-conscious but calculates potential rewards"
+  ],
+  "topics": [
+    "Financial Markets",
+    "Trading Strategies",
+    "Technical Analysis",
+    "Fundamental Analysis",
+    "Risk Management"
+  ],
   "adjectives": [
     "analytical",
     "data-driven",
     "strategic",
-    "insightful",
-    "cautious"
-  ]
+    "risk-conscious"
+  ],
+  "messageExamples": [[
+    {
+      "user": "user1",
+      "content": { "text": "What's your trading strategy?" },
+      "response": "As Trading Assistant, I analyze markets using technical and fundamental analysis to identify optimal trading opportunities."
+    }
+  ]],
+  "postExamples": [
+    "Market Analysis: BTC showing strong support at $45K with increasing volume...",
+    "Trading Update: Key levels to watch - Support: $44,800, Resistance: $46,200..."
+  ],
+  "style": {
+    "all": [],
+    "chat": [
+      "Clear and concise communication",
+      "Data-driven analysis",
+      "Professional tone"
+    ],
+    "post": []
+  },
+  "memorySettings": {
+    "enableRagKnowledge": true,
+    "enableLoreMemory": true,
+    "enableDescriptionMemory": true,
+    "enableDocumentsMemory": false
+  }
 }
 ```
 
-## Deployment Process
+### Required Character Fields
 
-When a character is deployed as an agent, the following steps occur:
+All character configurations must include:
+1. Base information (`name`, `description`, `system`)
+2. Model settings (`modelProvider`, `settings`)
+3. Integration settings (`clients`, `plugins`)
+4. Character attributes (`lore`, `topics`, `adjectives`)
+5. Examples (`messageExamples`, `postExamples`)
+6. Style guidelines (`style`)
+7. Memory configuration (`memorySettings`)
 
-1. The character configuration is saved to the database
-2. The Agent Manager service creates a Docker container running ElizaOS
-3. The character configuration is mounted into the container
-4. The container is started and exposes an API endpoint
+## Model Configuration
 
-## Agent API
+ElizaOS supports multiple model providers. In Paradyze V2, we use OpenRouter for flexible access to various AI models.
 
-Once deployed, each ElizaOS agent exposes the following API endpoints:
+### OpenRouter Configuration
 
-### Chat API
+OpenRouter allows you to use various models (OpenAI, Anthropic, etc.) with a single API key. Configure it in your `.env` file:
 
-```
-POST /api/chat
-```
+```bash
+# Add to your .env file in backend/eliza-main
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_MODEL=openai/gpt-4o-mini
+SMALL_OPENROUTER_MODEL=openai/gpt-4o-mini
+MEDIUM_OPENROUTER_MODEL=openai/gpt-4o-mini
+LARGE_OPENROUTER_MODEL=openai/gpt-4o-mini
+DEFAULT_MODEL_PROVIDER=openrouter
 
-**Request:**
-```json
-{
-  "message": "What trading strategies do you recommend for a volatile market?"
-}
-```
-
-**Response:**
-```json
-{
-  "id": "msg_123456",
-  "content": "For volatile markets, I recommend considering these strategies...",
-  "created_at": "2025-02-27T17:05:00Z"
-}
+# CRITICAL: Add AI-prefixed versions for direct model access
+AI_OPENROUTER_API_KEY=your_openrouter_api_key
+AI_OPENROUTER_MODEL=openai/gpt-4o-mini
 ```
 
-### Agent Information
+### Model Selection Logic
 
-```
-GET /api/info
-```
+ElizaOS uses a class-based model selection system:
 
-**Response:**
-```json
-{
-  "name": "Trading Assistant",
-  "description": "A trading assistant that helps with market analysis",
-  "version": "1.0.0",
-  "status": "running",
-  "uptime": 3600
-}
-```
-
-## WebSocket Support
-
-For real-time communication with agents, WebSocket connections are available at:
-
-```
-ws://{service_url}/api/ws
-```
-
-This allows for streaming responses from the agent.
-
-## Environment Variables
-
-ElizaOS agents require the following environment variables:
-
-- `OPENROUTER_API_KEY`: API key for OpenRouter
-- `OPENROUTER_MODEL`: Model to use (e.g., openai/gpt-4o-mini)
-- `DEFAULT_MODEL_PROVIDER`: Model provider (e.g., openrouter)
-
-## Customizing Agents
-
-To customize an ElizaOS agent:
-
-1. Modify the character configuration JSON file
-2. Update the character in the database
-3. Deploy a new version of the agent
-
-## Troubleshooting
-
-Common issues and their solutions:
-
-### Agent Not Starting
-
-- Check Docker logs: `docker logs [container_id]`
-- Verify the character configuration file exists and is valid JSON
-- Ensure the required environment variables are set
-
-### Agent Not Responding
-
-- Check if the agent container is running: `docker ps`
-- Verify the agent's API endpoint is accessible
-- Check the agent logs for errors
-
-### Poor Agent Responses
-
-- Review and improve the character configuration
-- Add more detailed message examples
-- Adjust the style and tone settings
+1. **SMALL**: Used for simple, less computationally intensive tasks
+2. **MEDIUM**: Used for moderately complex tasks
+3. **LARGE**: Used for complex reasoning and detailed responses
 
 ## Database Configuration
 
-ElizaOS supports multiple database backends through its adapter system. This guide covers both PostgreSQL (for production) and SQLite (for development) configurations.
+ElizaOS requires a database to store agent data, memories, and knowledge. In Paradyze V2, we support two database options:
 
-### SQLite Configuration (Development)
+### SQLite (Development)
 
-SQLite is recommended for development environments due to its simplicity and zero-configuration setup. To use SQLite with ElizaOS:
+For development environments, we use SQLite, which is a lightweight, file-based database that requires no additional setup.
 
-1. Set the database URL in your `.env` file:
-   ```
-   DATABASE_URL=sqlite:./data/paradyze.db
-   ```
+Configuration in `.env`:
+```
+DATABASE_URL=sqlite:./data/paradyze.db
+```
 
-2. Ensure you have the required dependencies:
+### PostgreSQL (Production)
+
+For production environments, we use PostgreSQL with the pgvector extension for optimal performance and scalability.
+
+Configuration in `.env`:
+```
+DATABASE_URL=postgres://postgres:postgres@postgres:5432/paradyze
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 1. Module System Mismatch
+
+**Symptoms:**
+- Error messages about "No exports main defined"
+- Issues with ESM vs CommonJS modules
+
+**Solution:**
+- Use the REST API approach instead of direct library imports
+- Ensure package.json doesn't have `"type": "module"`
+- Use CommonJS module format in tsconfig.json
+
+#### 2. Port Configuration Issues
+
+**Symptoms:**
+- Services can't communicate with each other
+- "Connection refused" errors
+
+**Solution:**
+- Verify port configurations in all .env files
+- Update ElizaIntegrationService to use the correct ElizaOS port
+- Check proxy settings in vite.config.ts
+
+#### 3. API Key Access Problems
+
+**Symptoms:**
+- "AI_LoadAPIKeyError" in ElizaOS logs
+- Model provider errors
+
+**Solution:**
+- Add both standard and AI-prefixed API keys to ElizaOS .env
+- Example: `OPENROUTER_API_KEY` and `AI_OPENROUTER_API_KEY`
+- Restart ElizaOS after changing environment variables
+
+#### 4. Direct Client Dependency Issues
+
+**Symptoms:**
+- Errors related to @elizaos/client-direct
+- Module resolution problems
+
+**Solution:**
+- Remove direct dependencies on ElizaOS packages
+- Use the REST API approach instead
+- Update package.json to remove file: dependencies
+
+### Debugging Steps
+
+1. **Check Service Status**
    ```bash
-   npm install sqlite3 sqlite
+   node check-services.js
    ```
 
-3. Initialize the SQLite database:
+2. **Verify Environment Variables**
    ```bash
-   node scripts/init-sqlite-db.js
-   ```
-
-This will create a SQLite database file in the `data` directory with all the necessary tables for ElizaOS.
-
-> **Note on SQLite Limitations**: Standard SQLite does not natively support vector similarity search operations required for ElizaOS's semantic memory features like `searchMemoriesByEmbedding()` and `getCachedEmbeddings()`. For development purposes, these limitations are acceptable, but for production use, PostgreSQL with pgvector is recommended.
-
-### PostgreSQL Configuration (Production)
-
-For production environments, PostgreSQL is recommended for better performance, concurrency, scalability, and full support for vector embeddings:
-
-1. Set the database URL in your `.env` file:
-   ```
-   DATABASE_URL=postgresql://postgres:password@localhost:5432/paradyze
-   ```
-
-2. Ensure you have the required dependencies:
-   ```bash
-   npm install pg pg-hstore
-   ```
-
-3. Install the pgvector extension for PostgreSQL:
-   ```bash
-   # Connect to your PostgreSQL database
-   psql -U postgres -d paradyze
+   # ElizaOS
+   cat backend/eliza-main/.env
    
-   # Install the pgvector extension
-   CREATE EXTENSION IF NOT EXISTS vector;
+   # Integration Service
+   cat backend/eliza-integration/.env
    ```
 
-4. Initialize the PostgreSQL database:
+3. **Check Logs**
+   - ElizaOS logs in its terminal
+   - Integration Service logs in its terminal
+   - Frontend logs in browser console
+
+4. **Test API Endpoints**
    ```bash
-   node scripts/init-postgres-db.js
+   # Check if ElizaOS is running
+   curl http://localhost:3006/api/eliza/status
+   
+   # List agents
+   curl http://localhost:3006/api/agents
    ```
 
-#### Vector Embedding Support in PostgreSQL
+## Best Practices
 
-ElizaOS uses vector embeddings for semantic memory retrieval, which requires database support for vector operations. PostgreSQL with the pgvector extension provides:
+### 1. Use REST API Approach
 
-1. **Vector Data Type**: Stores embedding vectors efficiently
-2. **Vector Similarity Search**: Enables semantic search using cosine similarity, Euclidean distance, or dot product
-3. **Indexing**: Supports approximate nearest neighbor search for fast retrieval
+Always use the REST API approach for integration. This provides better isolation between services and avoids module compatibility issues.
 
-The following ElizaOS features depend on vector embedding support:
+### 2. Proper Environment Configuration
 
-- `searchMemoriesByEmbedding()`: Retrieves memories based on semantic similarity
-- `getCachedEmbeddings()`: Reuses previously computed embeddings
-- Semantic memory retrieval for contextual conversations
-- Knowledge base search functionality
+- Keep environment variables consistent across services
+- Use both standard and AI-prefixed API keys for ElizaOS
+- Restart services after changing environment variables
 
-When using PostgreSQL, ensure that:
-- The pgvector extension is installed
-- Your database schema includes columns for storing embeddings
-- The `@elizaos/adapter-postgres` package is properly configured
+### 3. Port Management
 
-### Database Schema
+- Document the ports used by each service
+- Use environment variables to configure ports
+- Ensure proxy settings in the frontend match the integration service port
 
-ElizaOS uses the following tables to store agent data:
+### 4. Error Handling
 
-- **agents**: Stores agent configurations, including system prompts and metadata
-- **messages**: Stores conversation history for each agent
-- **memory**: Stores key-value pairs for agent memory
-- **plugins**: Stores plugin configurations
-- **agent_plugins**: Maps the many-to-many relationship between agents and plugins
+- Implement proper error handling in API calls
+- Provide fallback mechanisms for when services are unavailable
+- Log errors with sufficient context for debugging
 
-### Switching Between Databases
+## Advanced Configuration
 
-To switch between SQLite and PostgreSQL, simply update the `DATABASE_URL` in your `.env` file and restart the application. ElizaOS's database adapter will automatically connect to the appropriate database.
+### Custom Character Templates
+
+You can create custom character templates for different types of trading agents:
+
+1. Create a new character JSON file in `backend/eliza-main/characters/`
+2. Use the template structure shown above
+3. Customize the fields for your specific use case
+4. Reference the template name when creating agents
+
+### Model Provider Selection
+
+You can configure different model providers for different agent types:
+
+```json
+{
+  "name": "Premium Trading Assistant",
+  "modelProvider": "openai",
+  "settings": {
+    "model": "gpt-4"
+  }
+}
+```
+
+```json
+{
+  "name": "Standard Trading Assistant",
+  "modelProvider": "openrouter",
+  "settings": {
+    "model": "openai/gpt-4o-mini"
+  }
+}
+```
+
+## Conclusion
+
+This guide provides a comprehensive overview of the ElizaOS integration in Paradyze V2. By following the REST API approach and proper configuration steps, you can ensure a reliable and maintainable integration.
+
+For any issues not covered in this guide, please refer to the ElizaOS documentation or create an issue in the Paradyze V2 repository.

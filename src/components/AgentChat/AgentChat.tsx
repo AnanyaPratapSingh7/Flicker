@@ -32,7 +32,7 @@ export const AgentChat: React.FC = () => {
     const fetchAgentDetails = async () => {
       try {
         setIsLoading(true);
-        const response = await axios.get(`http://localhost:3001/api/agents/${agentId}`);
+        const response = await axios.get(`/api/agents/${agentId}`);
         console.log('Agent API response:', response.data);
         // The response now contains the agent data directly, no need to access .agent
         const agentData = response.data;
@@ -88,7 +88,7 @@ export const AgentChat: React.FC = () => {
     
     try {
       // Send message to the agent's API endpoint
-      const response = await axios.post(`http://localhost:3001/api/agents/${agentId}/message`, {
+      const response = await axios.post(`/api/agents/${agentId}/message`, {
         message: tempInputMessage
       });
       

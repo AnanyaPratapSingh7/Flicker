@@ -17,12 +17,12 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:3005',
+        target: 'http://localhost:3006',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => {
-          // Safely handle path without using decodeURI to prevent URI malformed errors
-          return path.replace(/^\/api/, '');
+          // Don't remove the /api prefix since the backend expects it
+          return path;
         }
       }
     }

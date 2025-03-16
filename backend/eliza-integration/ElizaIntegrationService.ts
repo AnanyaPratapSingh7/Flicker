@@ -4,6 +4,7 @@ import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs';
 import { EventEmitter } from 'events';
 import { initializeDatabaseAdapter } from './database';
+import FormData from 'form-data';
 
 /**
  * ElizaOS Integration Service
@@ -36,7 +37,7 @@ export class ElizaIntegrationService extends EventEmitter {
       path.resolve(process.cwd(), '../eliza-main');
       
     this.elizaApiBaseUrl = options.elizaApiBaseUrl || 
-      'http://localhost:3002';
+      'http://localhost:3001';
       
     this.characterPath = options.characterPath || 
       path.resolve(this.elizaRuntimePath, 'characters');
@@ -590,7 +591,7 @@ export class ElizaIntegrationService extends EventEmitter {
   /**
    * Send a message to an agent and get the response
    */
-  async sendMessage(agentId: string, message: string, userId?: string): Promise<string> {
+  async sendMessage(agentId: string, message: string, userId: string = 'user'): Promise<string> {
     try {
       const overallStartTime = Date.now();
       console.log(`Sending message to agent ${agentId}`);
@@ -606,7 +607,7 @@ export class ElizaIntegrationService extends EventEmitter {
       // Create FormData just like the web client does
       const formData = new FormData();
       formData.append('text', message);
-      formData.append('user', 'user');
+      formData.append('user', userId);
       
       // Log the request details
       console.log('Sending message with FormData to:', `${this.elizaApiBaseUrl}/${agentId}/message`);

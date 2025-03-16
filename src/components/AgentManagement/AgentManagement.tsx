@@ -42,7 +42,7 @@ const AgentManagement: React.FC = () => {
     setError(null);
     
     try {
-      const response = await axios.get('http://localhost:3001/api/agents');
+      const response = await axios.get('/api/agents');
       setAgents(response.data.agents || []);
     } catch (error) {
       console.error('Error fetching agents:', error);
@@ -55,7 +55,7 @@ const AgentManagement: React.FC = () => {
   const handleDeleteAgent = async (agentId: string) => {
     if (window.confirm('Are you sure you want to delete this agent?')) {
       try {
-        await axios.delete(`http://localhost:3001/api/agents/${agentId}`);
+        await axios.delete(`/api/agents/${agentId}`);
         // Remove the agent from the list
         setAgents(agents.filter(agent => agent.id !== agentId));
       } catch (error) {

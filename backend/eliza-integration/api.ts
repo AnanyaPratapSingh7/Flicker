@@ -2,24 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { elizaService } from './ElizaIntegrationService';
-import aiProxyRouter from './aiProxy';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = process.env.INTEGRATION_PORT || 3001;
+const PORT = process.env.INTEGRATION_PORT || 3006;
 
 // Middleware
-app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3002'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true
-}));
+app.use(cors());
 app.use(express.json());
-
-// Mount the AI proxy router
-app.use('/api/proxy', aiProxyRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -386,7 +386,7 @@ const CreateAgent: React.FC = () => {
       };
       
       // Send the request in the format expected by the backend API
-      const response = await axios.post('http://localhost:3001/api/agents', {
+      const response = await axios.post('/api/agents', {
         templateName: agentConfig.templateName,
         name: agentConfig.name,
         description: agentConfig.description,
@@ -678,9 +678,6 @@ const CreateAgent: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    
-
-
                     
                     <div>
                       <label className="block text-white/70 text-sm mb-2">Description</label>
