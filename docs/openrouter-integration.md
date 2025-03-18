@@ -1,233 +1,454 @@
-# OpenRouter Integration for Paradyze AI
+# OpenRouter AI Integration in Paradyze Chat
 
-## Overview
+This document details how we successfully integrated the OpenRouter AI service into the Paradyze application using Docker Compose, focusing on the implementation of streaming responses.
 
-This document explains how the OpenRouter API has been integrated into the Paradyze AI Agent Creator v2 project. This integration provides direct access to hundreds of AI models through a unified API endpoint. The integration has been fully implemented and tested with both streaming and non-streaming modes.
+## System Architecture
+
+The Paradyze app uses a Docker Compose setup with multiple services:
+
+- **Frontend**: React application that provides the user interface (port 3000)
+- **API Server**: Express-based server that handles API requests and proxies to OpenRouter (port 3002)
+- **OpenRouter Proxy**: Service to handle AI chat requests securely (port 3003)
 
 ## Implementation Details
 
-### Client-Side Implementation
+### 1. API Server
 
-The integration uses a direct approach to communicate with the OpenRouter API through a backend proxy, replacing the previous Vercel AI SDK implementation. This provides better control over the API and reduces external dependencies.
+The key implementation was in the API server (`api-server/server.js`), which needed to:
 
-#### `AIInput` Component
+- Accept chat requests from the frontend
+- Forward those requests to OpenRouter with proper authentication
+- Handle streaming responses for real-time chat
+- Manage error states gracefully
 
-Located at `/src/components/ui/ai-input.tsx`, this component provides:
-
-- Text input with automatic resizing
-- Conversation history management
-- Support for system prompts
-- Streaming and non-streaming response modes
-- Error handling and loading states with fallback mechanisms
-- Conversation display and clear functionality
-- Mock response fallback when the API is unavailable
-- Buffer management for handling chunked streaming responses
-
-Example usage:
-
-```tsx
-<AIInput 
-  systemPrompt="You are an AI assistant that helps with trading strategies."
-  initialPrompt="What are the key factors for successful algorithmic trading?"
-  model="openai/gpt-4o-mini"
-  temperature={0.7}
-  maxTokens={1000}
-  streamingEnabled={true}
-  apiEndpoint="http://localhost:3005/api/ai-chat"
-/>
-```
-
-#### Component Props
-
-| Prop | Type | Default | Description |
-| ---- | ---- | ------- | ----------- |
-| `id` | string | "ai-input" | Unique ID for the component |
-| `placeholder` | string | "Type your message..." | Placeholder text for the input field |
-| `minHeight` | number | 52 | Minimum height of the input field in pixels |
-| `maxHeight` | number | 200 | Maximum height of the input field in pixels |
-| `onSubmit` | function | - | Callback function when a message is submitted |
-| `className` | string | - | Additional CSS classes |
-| `showConversation` | boolean | true | Whether to show the conversation history |
-| `initialPrompt` | string | - | Initial prompt to start the conversation |
-| `systemPrompt` | string | "You are a helpful AI assistant for creating AI agents." | System prompt for the AI |
-| `apiEndpoint` | string | "http://localhost:3005/api/ai-chat" | Backend proxy endpoint |
-| `model` | string | "openai/gpt-4o-mini" | OpenRouter model to use |
-| `temperature` | number | 0.7 | Temperature setting for response randomness |
-| `maxTokens` | number | 800 | Maximum tokens in the response |
-| `streamingEnabled` | boolean | true | Whether to use streaming for responses |
-
-### Backend Implementation
-
-The backend proxy implementation is provided in `/src/api/chat/index.js` for the main application and in the standalone `local-openrouter-server.js` for local development. This proxy handles:
-
-1. API key security
-2. Rate limiting (50 requests per 15 minutes per IP)
-3. Error handling and validation
-4. Request validation
-5. Service discovery via ping endpoints
-6. Legacy path compatibility
-7. Proper SSE streaming format conversion
-
-#### Integration Steps
-
-1. Integration with your Express app is already done both in the main application and in the local development server:
+#### Key Components:
 
 ```javascript
-const express = require('express');
-const cors = require('cors');
-const app = express();
-const aiProxyRoutes = require('./src/api/chat');
+// API Server - Key Components
+const axios = require('axios');
 
-// Enable CORS for your frontend
-app.use(cors({
-  origin: ['http://localhost:3003', 'http://127.0.0.1:3003'], // Allow frontend origins
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+// Connection to OpenRouter
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 
-// Add CORS preflight handler
-app.options('*', cors({
-  origin: ['http://localhost:3003', 'http://127.0.0.1:3003'],
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
-
-app.use(express.json());
-
-// Add ping endpoints for service discovery
-app.get('/api/ai-chat/ping', (req, res) => {
-  res.status(200).json({ status: 'ok', service: 'OpenRouter Proxy' });
-});
-
-// Mount API routes
-app.use('/api', aiProxyRoutes);
-
-app.listen(3005, () => {
-  console.log('Server running on port 3005');
-  console.log('Test the API with: http://localhost:3005/api/ai-chat');
+// Streaming implementation with axios
+const response = await axios({
+  method: 'post',
+  url: OPENROUTER_API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+    'HTTP-Referer': 'http://localhost:3000',
+    'X-Title': 'Paradyze Trading Agent'
+  },
+  data: payload,
+  responseType: 'stream'
 });
 ```
 
-2. Set up environment variables in your `.env` file:
+### 2. Stream Processing
+
+Handling streaming responses was particularly challenging. We used the following approach:
+
+1. Set up server-sent events (SSE) headers on the response
+2. Use axios with `responseType: 'stream'` to get a readable stream
+3. Process incoming chunks and forward them to the client
+4. Handle stream completion and errors properly
+
+```javascript
+// Stream processing logic
+let chunkCount = 0;
+let streamActive = true;
+let buffer = '';
+
+response.data.on('data', (chunk) => {
+  if (!streamActive) return;
+  
+  try {
+    // Convert buffer to string and add to existing buffer
+    const text = chunk.toString('utf8');
+    buffer += text;
+    
+    // Process complete events from the buffer
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || ''; // Keep the incomplete line in the buffer
+    
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      
+      if (line.startsWith('data: ')) {
+        const data = line.substring(6);
+        
+        if (data === '[DONE]') {
+          // Handle stream completion
+          console.log('Received [DONE] marker from OpenRouter');
+          if (!res.writableEnded && streamActive) {
+            res.write('data: [DONE]\n\n');
+          }
+          streamActive = false;
+          break;
+        }
+        
+        // Forward chunks to client
+        if (!res.writableEnded && streamActive) {
+          res.write(`data: ${data}\n\n`);
+          chunkCount++;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error processing chunk:', err);
+    streamActive = false;
+  }
+});
+```
+
+### 3. Docker Configuration
+
+The Docker setup required careful configuration to ensure services could communicate properly. Below is a detailed explanation of our Docker Compose setup for all relevant services.
+
+#### Complete Docker Compose Configuration
+
+The full `docker-compose.yml` file is structured as follows:
+
+```yaml
+services:
+  # API Server Service
+  api-server:
+    build:
+      context: .
+      dockerfile: docker/api-server/Dockerfile
+    container_name: paradyze-api-server
+    environment:
+      - API_PORT=3002
+      - DATABASE_URL=sqlite:/app/data/paradyze.db
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./api-server:/app/api-server
+      - ./data:/app/data
+    networks:
+      - paradyze-network
+    command: ["node", "api-server/server.js"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # OpenRouter Proxy Service
+  openrouter-proxy:
+    build:
+      context: .
+      dockerfile: docker/openrouter-proxy/Dockerfile
+    container_name: paradyze-openrouter-proxy
+    environment:
+      - PORT=3003
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+    ports:
+      - "3003:3003"
+    networks:
+      - paradyze-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/ai-chat/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Frontend Service
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: paradyze-frontend
+    environment:
+      - PORT=3004
+      - VITE_OPENROUTER_SERVER_URL=http://localhost:3003
+      - VITE_API_ENDPOINT=/api/ai-chat
+      - VITE_API_SERVER_URL=http://localhost:3002
+      - VITE_OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - VITE_OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - VITE_DATABASE_URL=sqlite:/app/data/paradyze.db
+    ports:
+      - "3000:3004"
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./data:/app/data
+    networks:
+      - paradyze-network
+    depends_on:
+      - openrouter-proxy
+      - api-server
+
+networks:
+  paradyze-network:
+    driver: bridge
+```
+
+#### API Server Dockerfile
+
+```dockerfile
+FROM node:23-alpine
+
+WORKDIR /app
+
+# Create a minimal package.json with required dependencies
+RUN echo '{"name":"api-server","version":"1.0.0","dependencies":{"express":"^4.18.2","cors":"^2.8.5","dotenv":"^16.3.1","axios":"^1.6.2"}}' > package.json
+
+# Install dependencies
+RUN npm install
+
+# Copy only the API server files
+COPY api-server ./api-server
+
+EXPOSE 3002
+
+CMD ["node", "api-server/server.js"]
+```
+
+#### OpenRouter Proxy Dockerfile
+
+```dockerfile
+FROM node:23-alpine
+
+WORKDIR /app
+
+# Create package.json
+RUN echo '{\
+  "name": "openrouter-proxy",\
+  "version": "1.0.0",\
+  "description": "Proxy for OpenRouter API",\
+  "main": "server.js",\
+  "dependencies": {\
+    "express": "^4.18.2",\
+    "cors": "^2.8.5",\
+    "node-fetch": "^2.7.0"\
+  }\
+}' > /app/package.json
+
+# Install dependencies
+RUN npm install
+
+# Copy the server file
+COPY server-files/openrouter-server.js /app/server.js
+
+# Expose port 3003
+EXPOSE 3003
+
+# Start the server
+CMD ["node", "server.js"]
+```
+
+#### Frontend Dockerfile
+
+```dockerfile
+FROM node:23-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
+
+RUN npm install
+
+COPY . .
+
+# Set environment variable for Vite server proxy
+ENV VITE_SERVER_PROXY_TARGET=http://openrouter-proxy:3003
+
+EXPOSE 3004
+
+# Set environment variable to prevent browser opening
+ENV BROWSER=none
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+```
+
+### 4. Service Communication
+
+The services communicate with each other through the Docker network:
+
+1. **Frontend to API Server**: The frontend communicates with the API server through the Vite proxy configuration, which forwards requests from `/api/chat/ai-chat` to the API server at port 3002.
+
+2. **API Server to OpenRouter API**: The API server makes direct HTTPS requests to the OpenRouter API using the API key from environment variables.
+
+3. **Network Configuration**: All services are connected via the `paradyze-network` bridge network, which allows containers to communicate with each other using their service names.
+
+```javascript
+// Vite proxy configuration (in vite.config.ts)
+server: {
+  port: 3004,
+  open: true,
+  hmr: {
+    overlay: false
+  },
+  proxy: {
+    '/api': {
+      target: proxyTarget,
+      changeOrigin: true,
+      secure: false,
+      rewrite: (path) => {
+        return path;
+      }
+    }
+  }
+}
+```
+
+### 5. Environment Configuration
+
+The Docker Compose setup uses a `.env` file at the root of the project to manage environment variables. These variables are injected into the containers at runtime:
 
 ```
-OPENROUTER_API_KEY=your_api_key_here
+# OpenRouter Configuration
+OPENROUTER_API_KEY=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
 OPENROUTER_MODEL=openai/gpt-4o-mini
-APP_URL=https://your-app-domain.com
+
+# Database Configuration
+DATABASE_URL=sqlite:./data/paradyze.db
+
+# Application Settings
+NODE_ENV=development
 ```
 
-## Features
+The key environment variables that affect the OpenRouter integration are:
 
-### Non-Streaming Mode
-The implementation supports non-streaming mode which:
-- Sends the full request to OpenRouter
-- Waits for the complete response
-- Returns the entire response at once
-- Works reliably with both local and production environments
+- **OPENROUTER_API_KEY**: The API key for accessing the OpenRouter service
+- **OPENROUTER_MODEL**: The default model to use (e.g., openai/gpt-4o-mini)
+- **PORT**: The port each service runs on inside its container
+- **VITE_OPENROUTER_SERVER_URL**: URL for the frontend to reach the OpenRouter proxy
+- **VITE_API_ENDPOINT**: The endpoint path for AI chat requests
 
-### Streaming Mode
-The implementation fully supports streaming mode which:
-- Sends a stream request to OpenRouter
-- Processes the Server-Sent Events (SSE) format
-- Uses buffer management to handle incomplete SSE chunks
-- Updates the UI incrementally as tokens arrive
-- Provides a more responsive user experience
+### 6. Volume Mappings
 
-**Note:** Streaming is enabled by default and can be controlled using the `streamingEnabled` prop on the `AIInput` component or the `stream` parameter in direct API requests.
+Volume mappings are critical for development and data persistence:
 
-## Security Considerations
+1. **API Server Volumes**:
+   - `./api-server:/app/api-server`: Mounts the local API server code into the container, allowing live code changes without rebuilding
+   - `./data:/app/data`: Shared volume for database and other persistent data
 
-- API keys are stored securely on the server
-- The proxy adds rate limiting to prevent abuse
-- Request validation ensures properly formatted messages
-- Prevents direct exposure of API credentials to client-side code
+2. **Frontend Volumes**:
+   - `./src:/app/src`: For live code changes to React components
+   - `./public:/app/public`: For static assets
+   - `./index.html:/app/index.html`: The main HTML entry point
+   - `./vite.config.ts:/app/vite.config.ts`: Vite configuration
+   - `./data:/app/data`: Shared access to database and persistent data
 
-## Deployment
+### 7. Health Checks
 
-When deploying to production:
+Health checks ensure that services are running properly:
 
-1. Ensure your environment variables are properly set up
-2. Consider adjusting rate limits based on expected usage
-3. Set up monitoring for API usage and errors
-4. Configure proper CORS settings if needed
+- **API Server**: Checks that the `/health` endpoint returns a 200 status
+- **OpenRouter Proxy**: Checks that the `/api/ai-chat/ping` endpoint returns a 200 status
 
-## Troubleshooting
+These health checks are used by Docker Compose to determine if a service is healthy before allowing dependent services to start.
 
-Common issues and solutions:
+## Challenges Overcome
 
-- **401 Unauthorized**: Check your OpenRouter API key
-- **429 Too Many Requests**: Rate limit exceeded, implement backoff strategy
-- **500 Server Error**: Check server logs for detailed error information
-- **API Endpoint Not Found**: Ensure the correct path is configured (currently `/api/ai-chat`)
-  - The system now tries multiple paths automatically, including `/api/proxy/ai-chat` for legacy compatibility
-  - Check browser console logs to see which endpoint was detected and used
-- **CORS Issues**: 
-  - Ensure the server has proper CORS configuration
-  - The server now explicitly allows `localhost:3003` and includes credential support
-  - If running on a different port, update the CORS configuration in `local-openrouter-server.js`
-- **Port Conflicts**: If port 3005 is already in use, modify the PORT constant in local-openrouter-server.js
-- **Connection Refused**: 
-  - Ensure the server is running: `node local-openrouter-server.js`
-  - The AIInput component will now try multiple endpoints and fall back to mock responses if all fail
-- **Streaming Format Errors**: 
-  - If receiving incorrect format errors for streaming responses, check that the server-side stream formatter is parsing chunks correctly
-  - The server now automatically reformats various response types to match what the frontend expects
+### 1. Node Fetch vs Axios
 
-## Recent Updates (March 2025)
+Initially, we tried using `node-fetch`, but encountered module loading issues. The solution was to use `axios` which was already included in the Docker image.
 
-### March 3rd, 2025 Update - Enhanced Reliability
+```javascript
+// Before: Error with node-fetch
+const fetch = require('node-fetch');  // Error: Cannot find module 'node-fetch'
 
-1. **Smart Endpoint Detection**:
-   - Dynamic API server discovery that automatically tries multiple endpoint URLs
-   - Support for both current (`/api/ai-chat`) and legacy (`/api/proxy/ai-chat`) paths
-   - Frontend can automatically adapt to different server configurations
-   - Helpful console logging for debugging endpoint connections
+// After: Working solution with axios
+const axios = require('axios');
+```
 
-2. **Compatibility Layer**:
-   - Added compatibility proxy that forwards requests from legacy endpoints
-   - Automatically forwards requests from `/api/proxy/ai-chat` to `/api/ai-chat`
-   - Maintains backward compatibility with older code
-   - Handles both streaming and non-streaming requests properly
+### 2. Streaming Response Handling
 
-3. **Server Discovery Endpoints**:
-   - Added `/api/ai-chat/ping` endpoint for service detection
-   - Added legacy endpoint `/api/proxy/ai-chat/ping` for compatibility
-   - Frontend can now detect available servers and select the best one
+Properly handling the streaming response required:
 
-4. **Improved SSE Response Formatting**:
-   - Server now properly formats OpenRouter streaming responses to match frontend expectations
-   - Consistent format of `{"choices":[{"delta":{"content":"..."}}]}`
-   - Buffer management for handling chunked SSE data
-   - Proper end-of-stream marker handling
+- Careful buffer management to handle partial JSON chunks
+- Proper event handling for 'data', 'end', and 'error' events
+- Forwarding properly formatted SSE data to the client
 
-5. **Enhanced CORS Configuration**:
-   - Explicit CORS origins for improved security
-   - Added preflight request handler for OPTIONS requests
-   - Support for credentials in cross-origin requests
-   - Detailed request logging for debugging
+### 3. Docker Volume Configuration
 
-### Earlier March 2025 Updates
+Ensuring the server.js file with our changes was properly mounted in the container:
 
-1. **Fixed API Endpoint Path**: Updated from `/api/chat/ai-chat` to `/api/ai-chat` to match server routes
+```yaml
+volumes:
+  - ./api-server:/app/api-server
+```
 
-2. **Improved Streaming Implementation**: 
-   - Enhanced buffer management for handling incomplete SSE chunks
-   - Updated server-side streaming handling for proper event forwarding
-   - Fixed compatibility with node-fetch
+### 4. Port Configuration
 
-3. **Error Handling and Fallbacks**:
-   - Added mock response system when the API is unavailable
-   - Improved error reporting with detailed messages
-   - Enhanced state management during errors
+We needed to ensure all services used the correct ports to avoid conflicts:
 
-4. **Local Development Server**:
-   - Created dedicated local-openrouter-server.js for testing
-   - Configurable port (currently 3005) to avoid conflicts
-   - Comprehensive logging for troubleshooting
+- Frontend: Port 3000 (mapped from container port 3004)
+- API Server: Port 3002
+- OpenRouter Proxy: Port 3003
 
-5. **TypeScript Improvements**:
-   - Fixed TypeScript errors in the AIInput component
-   - Improved type definitions and function declarations
-   - Enhanced code readability and maintainability
+### 5. Inter-Service Dependencies
+
+Managing the startup order of services using the `depends_on` configuration to ensure that the frontend starts after the API server and OpenRouter proxy are available.
+
+## Testing and Verification
+
+To verify the integration is working:
+
+1. Start all services with `docker compose up`
+2. Access the frontend at http://localhost:3000
+3. Send a message in the chat interface
+4. Observe real-time streaming of the AI response
+5. Check logs with `docker compose logs api-server` to see detailed information about request handling
+
+### Useful Docker Commands
+
+Here are some useful commands for managing the Docker setup:
+
+```bash
+# Start all services
+docker compose up
+
+# Start all services in detached mode
+docker compose up -d
+
+# Rebuild a specific service
+docker compose build api-server
+
+# Restart a specific service
+docker compose restart api-server
+
+# View logs for a specific service
+docker compose logs api-server
+
+# View logs for all services and follow them
+docker compose logs -f
+
+# Stop all services
+docker compose down
+```
+
+## Environment Configuration
+
+The integration uses these environment variables from `.env`:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-xxxxx
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+## Conclusion
+
+The successful integration enables real-time AI responses through OpenRouter in the Paradyze application. The streaming implementation provides an excellent user experience with immediate, word-by-word responses rather than waiting for complete messages.
+
+Future improvements could include:
+- Enhanced error handling and retry logic
+- Response caching for common questions
+- User-selectable AI models within the interface
+- Load balancing for multiple API keys
+- Rate limiting to manage API costs
+- Analytics to track usage patterns and optimize performance

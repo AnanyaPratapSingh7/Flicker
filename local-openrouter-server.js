@@ -19,7 +19,8 @@ console.log(`OPENROUTER_API_KEY exists: ${!!getEnv('OPENROUTER_API_KEY')}`);
 console.log(`OPENROUTER_MODEL: ${getEnv('OPENROUTER_MODEL', 'openai/gpt-4o-mini')}`);
 
 const app = express();
-const PORT = 3005;
+// Change from hardcoded port to environment variable
+const PORT = parseInt(process.env.PORT || 3003);
 
 // Add CORS debugging middleware
 app.use((req, res, next) => {
@@ -34,7 +35,7 @@ app.use((req, res, next) => {
 
 // Enable CORS for your frontend
 app.use(cors({
-  origin: ['http://localhost:3003', 'http://127.0.0.1:3003'], // Allow the frontend origin explicitly
+  origin: ['http://localhost:3000', 'http://frontend:3000'],
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -42,7 +43,7 @@ app.use(cors({
 
 // Add CORS preflight options handler
 app.options('*', cors({
-  origin: ['http://localhost:3003', 'http://127.0.0.1:3003'],
+  origin: ['http://localhost:3000', 'http://frontend:3000'],
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true

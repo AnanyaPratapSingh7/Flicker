@@ -1,22 +1,21 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Wallet, LineChart, Bot, Home, DollarSign, LogOut, Twitter, Users } from 'lucide-react';
+import { Wallet, LineChart, Bot, Home, LogOut, Twitter } from 'lucide-react';
 import { Button } from './Button';
 import { useWallet } from '../../contexts/WalletContext';
 
 interface NavigationItem {
   name: string;
-  path: string;
+  path?: string;
   icon: React.ElementType;
+  comingSoon?: boolean;
 }
 
 const navigation: NavigationItem[] = [
   { name: 'Dashboard', path: '/', icon: Home },
   { name: 'Agent Launchpad', path: '/agent-launchpad', icon: Bot },
-  { name: 'Agent Management', path: '/agent-management', icon: Users },
-  { name: 'Prediction Market', path: '/prediction-market', icon: LineChart },
-  { name: 'Money Market', path: '/money-market', icon: Wallet },
-  { name: 'Earn', path: '/earn', icon: DollarSign },
+  { name: 'Prediction Market', icon: LineChart, comingSoon: true },
+  { name: 'Money Market', icon: Wallet, comingSoon: true },
 ];
 
 const DockSidebar: React.FC = () => {
@@ -55,10 +54,11 @@ const DockSidebar: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate(item.path)}
+                onClick={item.path ? () => navigate(item.path as string) : undefined}
+                disabled={item.comingSoon}
                 className={`h-12 w-12 rounded-lg hover:bg-white/5 hover:scale-110 transition-all duration-200 ${
                   location.pathname === item.path ? 'bg-white/10' : ''
-                }`}
+                } ${item.comingSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <item.icon
                   className={`h-5 w-5 transition-colors ${
@@ -69,7 +69,7 @@ const DockSidebar: React.FC = () => {
                 />
               </Button>
               <div className="absolute left-full ml-2 px-2 py-1 bg-black/80 rounded text-xs whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity">
-                {item.name}
+                {item.name} {item.comingSoon && <span className="text-[var(--gold-accent)]">(Coming Soon)</span>}
               </div>
             </div>
           ))}

@@ -83,63 +83,57 @@ export function AIInput({
   
   // Validate API endpoint on mount and try to detect running servers
   useEffect(() => {
+    // Helper function to fetch with timeout
+    const fetchWithTimeout = async (url: string, options: any = {}, timeout = 5000) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+      } catch (error) {
+        clearTimeout(id);
+        throw error;
+      }
+    };
+    
     const checkEndpoint = async () => {
       try {
-        // Validate the URL format
-        const url = new URL(apiEndpoint);
-        console.log(`Starting with endpoint: ${url.toString()}`);
+        console.log(`Starting with endpoint: ${apiEndpoint}`);
         
-        // Try the specified endpoint first
+        // Try the ping endpoint
         try {
-          const testResponse = await fetch(`${apiEndpoint.replace(/\/+$/, '')}/ping`, {
+          const pingUrl = `${apiEndpoint.replace(/\/+$/, '')}/ping`;
+          console.log(`Checking ping endpoint: ${pingUrl}`);
+          
+          const testResponse = await fetchWithTimeout(pingUrl, {
             method: 'GET',
             mode: 'cors',
             credentials: 'include',
-          });
+          }, 3000); // 3 second timeout
+          
           if (testResponse.ok) {
             console.log(`Successfully connected to ${apiEndpoint}`);
             setActualEndpoint(apiEndpoint);
             return;
+          } else {
+            console.warn(`Ping check failed with status: ${testResponse.status}`);
           }
-        } catch (e) {
-          console.warn(`Primary endpoint ${apiEndpoint} not available, trying alternatives`);
+        } catch (e: any) {
+          console.warn(`Ping check failed: ${e.message}`);
         }
         
-        // Try alternative endpoints
-        const alternativeEndpoints = [
-          'http://localhost:3005/api/ai-chat',
-          'http://localhost:3002/api/proxy/ai-chat',
-          'http://localhost:3002/api/ai-chat',
-          'http://localhost:3000/api/ai-chat'
-        ];
-        
-        for (const endpoint of alternativeEndpoints) {
-          if (endpoint === apiEndpoint) continue; // Skip the one we already tried
-          
-          try {
-            console.log(`Trying alternative endpoint: ${endpoint}`);
-            const pingURL = `${endpoint.replace(/\/+$/, '')}/ping`;
-            const testResponse = await fetch(pingURL, {
-              method: 'GET',
-              mode: 'cors',
-              credentials: 'include',
-            });
-            
-            if (testResponse.ok) {
-              console.log(`Successfully connected to ${endpoint}`);
-              setActualEndpoint(endpoint);
-              return;
-            }
-          } catch (e) {
-            console.warn(`Alternative endpoint ${endpoint} not available`);
-          }
-        }
-        
-        // If we get here, none of the endpoints worked
-        console.warn('No working endpoints found, will use mock responses');
+        // If endpoint check fails, still use the configured endpoint
+        console.warn(`Will use the configured endpoint ${apiEndpoint} anyway`);
+        setActualEndpoint(apiEndpoint);
       } catch (e) {
-        console.error(`Invalid API endpoint URL: ${apiEndpoint}`);
-        console.error('API URL Error:', e);
+        console.error(`Error during endpoint check: ${e instanceof Error ? e.message : String(e)}`);
+        // Still use the provided endpoint
+        setActualEndpoint(apiEndpoint);
       }
     };
     
@@ -154,10 +148,12 @@ export function AIInput({
     try {
       // Try the direct API call without pre-checking
       try {
-        console.log(`Attempting to call API at ${actualEndpoint}`);
+        // Always use the direct endpoint for more reliable connections
+        const endpoint = '/api/chat/ai-chat';
+        console.log(`Attempting to call API at ${endpoint} with ${stream ? 'streaming' : 'regular'} request`);
         
         if (stream) {
-          await streamResponse(messages);
+          await streamResponse(messages, endpoint);
         } else {
           await fetchResponse(messages);
         }
@@ -169,8 +165,9 @@ export function AIInput({
         if (apiError.message.includes('404') || 
             apiError.message.includes('Failed to fetch') ||
             apiError.message.includes('Network') ||
-            apiError.message.includes('CORS')) {
-          console.warn(`Backend proxy at ${actualEndpoint} not available. Using mock response instead.`);
+            apiError.message.includes('CORS') ||
+            apiError.message.includes('status: 500')) {
+          console.warn(`Backend proxy not available. Using mock response instead.`);
           await mockResponse(messages);
         } else {
           // For other errors, show them to the user
@@ -267,14 +264,34 @@ export function AIInput({
   };
 
   // Stream response using our client API
-  const streamResponse = async (messages: Array<{role: string, content: string}>) => {
+  const streamResponse = async (messages: Array<{role: string, content: string}>, endpoint = '/api/chat/ai-chat') => {
     try {
-      console.log(`Sending streaming request with ${messages.length} messages and model ${model}...`);
+      console.log(`Sending streaming request with ${messages.length} messages and model ${model} to ${endpoint}...`);
       
       // Create new message placeholder in conversation
-      setConversation(prev => [...prev, { role: 'assistant', content: '' }]);
+      setConversation(prev => [...prev, { role: 'assistant', content: 'Connecting to AI...' }]);
       
       let assistantMessage = '';
+      let chunkCount = 0;
+      let streamStarted = false;
+      
+      // Add a timeout to detect if streaming doesn't start properly
+      const streamingTimeout = setTimeout(() => {
+        if (!streamStarted && chunkCount === 0) {
+          console.warn('Stream timeout - no chunks received within 10 seconds');
+          // Update the message to reflect the timeout
+          setConversation(prev => {
+            const newConvo = [...prev];
+            const lastMessage = newConvo[newConvo.length - 1];
+            if (lastMessage.role === 'assistant' && lastMessage.content === 'Connecting to AI...') {
+              lastMessage.content = 'The connection to the AI service timed out. Please try again.';
+            }
+            return newConvo;
+          });
+          setError('Connection timeout. No response received from the server.');
+          setIsLoading(false);
+        }
+      }, 10000); // 10 second timeout
       
       // Use our client API for streaming
       await aiClient.streamChatRequest(
@@ -283,12 +300,28 @@ export function AIInput({
           temperature,
           max_tokens: maxTokens,
           model,
-          stream: true
+          stream: true,
+          endpoint
         },
         // Handle each chunk
         (chunk) => {
+          streamStarted = true;
+          chunkCount++;
+          
+          // Clear any connection placeholder on first chunk
+          if (chunkCount === 1) {
+            setConversation(prev => {
+              const newConvo = [...prev];
+              if (newConvo[newConvo.length - 1].content === 'Connecting to AI...') {
+                newConvo[newConvo.length - 1].content = '';
+              }
+              return newConvo;
+            });
+          }
+          
           const content = chunk.choices?.[0]?.delta?.content || '';
           if (content) {
+            console.log(`Chunk #${chunkCount} received with content: ${content}`);
             assistantMessage += content;
             // Update the last message in the conversation with new content
             setConversation(prev => {
@@ -299,22 +332,64 @@ export function AIInput({
               setTimeout(() => scrollToBottom(), 10);
               return newConvo;
             });
+          } else {
+            console.log(`Chunk #${chunkCount} received without content`);
           }
         },
         // Handle errors
         (error) => {
           console.error('Error in streaming chat:', error);
+          clearTimeout(streamingTimeout);
+          
+          // If we've received some content already, keep it but add an error notice
+          if (assistantMessage) {
+            setConversation(prev => {
+              const newConvo = [...prev];
+              newConvo[newConvo.length - 1].content += '\n\n[Connection interrupted]';
+              return newConvo;
+            });
+          } else {
+            // If no content was received, show the error message
+            setConversation(prev => {
+              const newConvo = [...prev];
+              newConvo[newConvo.length - 1].content = 'Sorry, there was an error connecting to the AI service.';
+              return newConvo;
+            });
+          }
+          
           setError(error instanceof Error ? error.message : 'Unknown error');
-          throw error;
         },
         // On complete
         () => {
-          console.log('Stream completed successfully');
+          clearTimeout(streamingTimeout);
+          console.log(`Stream completed successfully with ${chunkCount} chunks`);
+          
+          if (chunkCount === 0 || assistantMessage === '') {
+            console.warn('Stream completed but no content was received');
+            // Update the placeholder message
+            setConversation(prev => {
+              const newConvo = [...prev];
+              newConvo[newConvo.length - 1].content = 'No response received from the AI service. Please try again.';
+              return newConvo;
+            });
+            setError('No response received from the server. Please try again.');
+          }
+          
           scrollToBottom();
         }
       );
     } catch (error) {
       console.error('Stream response error:', error);
+      
+      // Update the conversation with an error message
+      setConversation(prev => {
+        const newConvo = [...prev];
+        if (newConvo[newConvo.length - 1].role === 'assistant') {
+          newConvo[newConvo.length - 1].content = 'Sorry, there was an error connecting to the AI service.';
+        }
+        return newConvo;
+      });
+      
       throw error;
     }
   };

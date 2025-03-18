@@ -127,65 +127,58 @@ const CreateAgent: React.FC = () => {
         }
         return true;
         
-      case 3: // Tokenize
-        // Validate ticker
-        if (!agentConfig.ticker.trim()) {
-          setValidationError('Ticker symbol is required');
-          return false;
-        }
-        
-        // Validate tokenization fields
-        if (!agentConfig.initialTokenSupply || agentConfig.initialTokenSupply < 1000) {
-          setValidationError('Initial token supply must be at least 1,000');
-          return false;
-        }
-        if (agentConfig.initialTokenSupply > 10000000) {
-          setValidationError('Initial token supply cannot exceed 10,000,000');
-          return false;
-        }
-        
-        const creatorShare = agentConfig.creatorShare || 0;
-        const liquidityShare = agentConfig.liquidityShare || 0;
-        
-        if (creatorShare < 0 || creatorShare > 100) {
-          setValidationError('Creator share must be between 0 and 100%');
-          return false;
-        }
-        
-        if (liquidityShare < 0 || liquidityShare > 100) {
-          setValidationError('Liquidity pool share must be between 0 and 100%');
-          return false;
-        }
-        
-        if (creatorShare + liquidityShare !== 100) {
-          setValidationError('Token distribution must total 100%');
-          return false;
-        }
-        
+      case 3: // Tokenize - Skip validation as this step is marked as "Coming Soon"
+        // Automatically pass validation for step 3
         return true;
         
       case 4: // Review & Create
-        return true;
-        
+        // Since tokenization is not available, we only need to validate that
+        // both step 1 and step 2 are valid
+        return validateSpecificStep(1) && validateSpecificStep(2);
+      
       default:
         return true;
     }
   };
   
+  // Helper function to validate a specific step
+  const validateSpecificStep = (step: number): boolean => {
+    const currentStepBackup = currentStep;
+    setCurrentStep(step);
+    const isValid = validateCurrentStep();
+    setCurrentStep(currentStepBackup);
+    return isValid;
+  };
+  
   // Navigation functions
   const nextStep = () => {
     if (currentStep < totalSteps && validateCurrentStep()) {
-      setCurrentStep(currentStep + 1);
+      // Skip step 3 (Tokenize) since it's marked as "Coming Soon"
+      if (currentStep === 2) {
+        setCurrentStep(4);
+      } else {
+        setCurrentStep(currentStep + 1);
+      }
     }
   };
   
   const prevStep = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      // Skip step 3 (Tokenize) when going back from step 4
+      if (currentStep === 4) {
+        setCurrentStep(2);
+      } else {
+        setCurrentStep(currentStep - 1);
+      }
     }
   };
   
   const goToStep = (step: number) => {
+    // Prevent navigation to step 3 (Tokenize)
+    if (step === 3) {
+      return;
+    }
+    
     if (step >= 1 && step <= totalSteps) {
       setCurrentStep(step);
     }
@@ -333,8 +326,6 @@ const CreateAgent: React.FC = () => {
       if (agentConfig.clients.discord) activeClients.push("discord");
       if (agentConfig.clients.twitter) activeClients.push("twitter");
       if (agentConfig.clients.telegram) activeClients.push("telegram");
-      if (agentConfig.clients.slack) activeClients.push("slack");
-      if (agentConfig.clients.simsai) activeClients.push("simsai");
       
       // Prepare the Eliza character file format
       const elizaCharacterConfig = {
@@ -391,11 +382,13 @@ const CreateAgent: React.FC = () => {
         name: agentConfig.name,
         description: agentConfig.description,
         character: elizaCharacterConfig,
+        // Tokenization is coming soon, so we'll send placeholder values for now
         tokenization: {
-          initialSupply: agentConfig.initialTokenSupply,
+          enabled: false,
+          initialSupply: 1000000,
           distribution: {
-            creator: agentConfig.creatorShare,
-            liquidityPool: agentConfig.liquidityShare
+            creator: 20,
+            liquidityPool: 80
           }
         }
       });
@@ -542,6 +535,7 @@ const CreateAgent: React.FC = () => {
               const stepNumber = index + 1;
               const isActive = currentStep === stepNumber;
               const isCompleted = currentStep > stepNumber;
+              const isTokenizeStep = stepNumber === 3;
               
               return (
                 <motion.div 
@@ -552,10 +546,10 @@ const CreateAgent: React.FC = () => {
                   transition={{ delay: index * 0.1, duration: 0.3 }}
                 >
                   <motion.div 
-                    className={`step-circle ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-                    onClick={() => goToStep(stepNumber)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    className={`step-circle ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isTokenizeStep ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => isTokenizeStep ? null : goToStep(stepNumber)}
+                    whileHover={{ scale: isTokenizeStep ? 1 : 1.05 }}
+                    whileTap={{ scale: isTokenizeStep ? 1 : 0.95 }}
                   >
                     {isCompleted ? (
                       <motion.div
@@ -570,14 +564,20 @@ const CreateAgent: React.FC = () => {
                     )}
                   </motion.div>
                   <motion.div 
-                    className={`step-label ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+                    className={`step-label ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''} ${isTokenizeStep ? 'opacity-50' : ''}`}
                     animate={{ 
                       color: isActive ? "#D4C6A1" : isCompleted ? "rgba(255, 255, 255, 0.3)" : "rgba(255, 255, 255, 0.5)",
                       y: isActive ? -2 : 0
                     }}
                     transition={{ duration: 0.3 }}
                   >
-                    {getStepTitle(stepNumber)}
+                    {isTokenizeStep ? (
+                      <div className="flex items-center">
+                        {getStepTitle(stepNumber)} <span className="ml-2 text-xs bg-black/30 px-2 py-0.5 rounded text-[#D4C6A1]/80">Coming Soon</span>
+                      </div>
+                    ) : (
+                      getStepTitle(stepNumber)
+                    )}
                   </motion.div>
                 </motion.div>
               );
@@ -912,76 +912,27 @@ const CreateAgent: React.FC = () => {
                 {/* Step 3: Tokenize - Only visible in step 3 */}
                 {currentStep === 3 && (
                   <div className="space-y-4">
-
-                    
-                    <div>
-                      <label className="block text-white/70 text-sm mb-2">Tokenization Settings</label>
-                      <div className="bg-black/10 p-4 rounded-lg space-y-4">
-                        <div>
-                          <label className="block text-white/70 text-sm mb-2">Ticker Symbol</label>
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 pr-10 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
-                              placeholder="e.g. ALPH (max 5 characters)"
-                              maxLength={5}
-                              value={agentConfig.ticker}
-                              onChange={(e) => setAgentConfig({...agentConfig, ticker: e.target.value.toUpperCase()})}
-                            />
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                              <SparkleButton 
-                                onSubmit={(value) => setAgentConfig({...agentConfig, ticker: value.toUpperCase().substring(0, 5)})} 
-                                placeholder="Suggest a ticker symbol for my agent..."
-                                apiEndpoint="http://localhost:3002/api/proxy/ai-chat"
-                              />
-                            </div>
-                          </div>
-                          <p className="text-white/50 text-xs mt-1">The ticker symbol for your agent's token</p>
-                        </div>
-                        <div>
-                          <label className="block text-white/70 text-sm mb-2">Initial Token Supply</label>
-                          <input 
-                            type="number" 
-                            className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-3 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
-                            placeholder="e.g. 1000000"
-                            min="1000"
-                            max="10000000"
-                            value={agentConfig.initialTokenSupply || 1000000}
-                            onChange={(e) => setAgentConfig({...agentConfig, initialTokenSupply: parseInt(e.target.value)})}
-                          />
-                          <p className="text-white/50 text-xs mt-1">The initial supply of tokens for your agent (1,000 - 10,000,000)</p>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-white/70 text-sm mb-2">Token Distribution</label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-white/70 text-xs mb-1">Creator Share (%)</label>
-                              <input 
-                                type="number" 
-                                className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
-                                placeholder="e.g. 20"
-                                min="0"
-                                max="100"
-                                value={agentConfig.creatorShare || 20}
-                                onChange={(e) => setAgentConfig({...agentConfig, creatorShare: parseInt(e.target.value)})}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-white/70 text-xs mb-1">Liquidity Pool (%)</label>
-                              <input 
-                                type="number" 
-                                className="w-full bg-black/20 border border-white/10 text-white rounded-lg p-2 focus:ring-[#BFB28F]/50 focus:border-[#BFB28F]/50 transition-all duration-200"
-                                placeholder="e.g. 80"
-                                min="0"
-                                max="100"
-                                value={agentConfig.liquidityShare || 80}
-                                onChange={(e) => setAgentConfig({...agentConfig, liquidityShare: parseInt(e.target.value)})}
-                              />
-                            </div>
-                          </div>
-                          <p className="text-white/50 text-xs mt-1">Total must equal 100%</p>
-                        </div>
+                    <div className="bg-black/10 p-8 rounded-lg flex flex-col items-center justify-center min-h-[300px]">
+                      <div className="bg-[#D4C6A1]/20 backdrop-blur-sm px-8 py-3 rounded-full border border-[#D4C6A1]/30 mb-6">
+                        <span className="text-[#D4C6A1] uppercase tracking-wider text-sm font-medium">Coming Soon</span>
+                      </div>
+                      <h3 className="text-2xl font-semibold text-white mb-4">Agent Tokenization</h3>
+                      <p className="text-white/70 text-center max-w-md mb-6">
+                        Agent tokenization will be available in a future update. You'll be able to create tokens for your agents and set distribution parameters.
+                      </p>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={prevStep}
+                          className="px-5 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all duration-200"
+                        >
+                          Go Back
+                        </button>
+                        <button 
+                          onClick={() => setCurrentStep(4)}
+                          className="px-5 py-2.5 rounded-lg bg-[#D4C6A1]/80 text-black hover:bg-[#D4C6A1] transition-all duration-200"
+                        >
+                          Skip to Review
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1024,15 +975,14 @@ const CreateAgent: React.FC = () => {
                           </ul>
                         </div>
                         
-
-                        
                         <div>
                           <h4 className="text-white/70 text-sm font-semibold mb-2">Tokenization</h4>
-                          <ul className="space-y-1 text-sm">
-                            <li><span className="text-white/50">Initial Supply:</span> {agentConfig.initialTokenSupply?.toLocaleString() || '1,000,000'}</li>
-                            <li><span className="text-white/50">Creator Share:</span> {agentConfig.creatorShare || 20}%</li>
-                            <li><span className="text-white/50">Liquidity Pool:</span> {agentConfig.liquidityShare || 80}%</li>
-                          </ul>
+                          <div className="bg-black/20 p-2 rounded">
+                            <div className="flex items-center">
+                              <span className="text-[#D4C6A1]/90 text-xs">COMING SOON</span>
+                            </div>
+                            <p className="text-white/50 text-xs mt-1">Agent tokenization will be available in a future update</p>
+                          </div>
                         </div>
                       </div>
                       

@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import viteTsconfigPaths from 'vite-tsconfig-paths';
 import path from 'path';
 
+// Get proxy target from environment or default to localhost:3006 for Integration API
+const proxyTarget = process.env.VITE_SERVER_PROXY_TARGET || 'http://localhost:3006';
+console.log(`Vite proxy target: ${proxyTarget}`);
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -17,7 +21,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:3006',
+        target: proxyTarget,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => {

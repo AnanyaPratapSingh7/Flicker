@@ -2,7 +2,8 @@ import {
   createRootRoute, 
   createRoute, 
   createRouter,
-  Outlet
+  Outlet,
+  useNavigate
 } from '@tanstack/react-router';
 import React, { Suspense, lazy } from 'react';
 import { WalletProvider } from './contexts/WalletContext';
@@ -17,8 +18,6 @@ import { ThreeDPhotoCarouselDemo } from "./components/ui/code-demo";
 
 // Lazy load components
 const HomeDashboard = lazy(() => import('./components/HomeDashboard/HomeDashboard'));
-const PredictionMarket = lazy(() => import('./components/PredictionMarket/PredictionMarket'));
-const MoneyMarket = lazy(() => import('./components/MoneyMarket/MoneyMarket'));
 
 // Create our root route
 export const rootRoute = createRootRoute({
@@ -53,22 +52,18 @@ export const agentLaunchpadRoute = createRoute({
   component: AgentLaunchpad,
 });
 
+// Redirect from agent-management to agent-launchpad since we've merged these pages
 export const agentManagementRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/agent-management',
-  component: AgentManagement,
-});
-
-export const predictionMarketRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/prediction-market',
-  component: PredictionMarket,
-});
-
-export const moneyMarketRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/money-market',
-  component: MoneyMarket,
+  component: () => {
+    return (
+      <div className="redirect-container">
+        <p>Redirecting to Agent Launchpad...</p>
+        <meta httpEquiv="refresh" content="0;url=/agent-launchpad" />
+      </div>
+    );
+  },
 });
 
 export const demoCarouselRoute = createRoute({
@@ -94,8 +89,6 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   agentLaunchpadRoute,
   agentManagementRoute,
-  predictionMarketRoute,
-  moneyMarketRoute,
   demoCarouselRoute,
   createAgentRoute,
   agentChatRoute,

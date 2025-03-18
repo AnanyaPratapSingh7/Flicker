@@ -1,49 +1,138 @@
-version: '3.8'
-
 services:
-  # PostgreSQL database (local alternative to Supabase)
-  postgres:
-    image: postgres:14
+  # ElizaOS Main Runtime
+  elizaos-main:
+    image: eliza:latest
+    container_name: paradyze-elizaos-main
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_DB: paradyze
+      - ELIZAOS_PORT=3000
+      - ELIZAOS_MODE=development
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - AI_OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - AI_OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - DEFAULT_MODEL_PROVIDER=openrouter
+      - DATABASE_URL=sqlite:/data/elizaos.db
     ports:
-      - "5432:5432"
+      - "3000:3000"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d
+      - ./data:/data
+      - ./tokenizers:/app/tokenizers
+    networks:
+      - paradyze-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  # ElizaOS Integration Service
-  eliza-integration:
-    build: ./backend/eliza-integration
-    ports:
-      - "3001:3001"
+  # Integration API
+  integration-api:
+    build:
+      context: .
+      dockerfile: docker/integration-api/Dockerfile
+    container_name: paradyze-integration-api
     environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/paradyze
-      - ELIZA_RUNTIME_PATH=/app/eliza-main
-      - INTEGRATION_PORT=3001
+      - INTEGRATION_PORT=3006
+      - ELIZA_API_URL=http://elizaos-main:3000
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - DATABASE_URL=sqlite:/app/data/paradyze.db
+      - ELIZAOS_INTEGRATION_MODE=api
+    ports:
+      - "3006:3006"
     volumes:
-      - ./backend/eliza-main:/app/eliza-main
-      - ./backend/eliza-integration:/app
+      - ./data:/app/data
+    networks:
+      - paradyze-network
     depends_on:
-      - postgres
+      elizaos-main:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3006/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-  # Agent manager service (for creating/managing agents)
-  agent-manager:
-    build: ./backend/agent-manager
+  # API Server
+  api-server:
+    build:
+      context: .
+      dockerfile: docker/api-server/Dockerfile
+    container_name: paradyze-api-server
+    environment:
+      - API_PORT=3002
+      - DATABASE_URL=sqlite:/app/data/paradyze.db
+      #- INTEGRATION_URL=http://integration-api:3001
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
     ports:
       - "3002:3002"
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/paradyze
-      - INTEGRATION_URL=http://eliza-integration:3001
-      - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./backend/agent-manager:/app
-    depends_on:
-      - postgres
-      - eliza-integration
+      - ./api-server:/app/api-server
+      - ./data:/app/data
+    networks:
+      - paradyze-network
+    command: ["node", "api-server/server.js"]
+    #depends_on:
+    #  integration-api:
+    #    condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-volumes:
-  postgres_data:
+  # OpenRouter Proxy
+  openrouter-proxy:
+    build:
+      context: .
+      dockerfile: docker/openrouter-proxy/Dockerfile
+    container_name: paradyze-openrouter-proxy
+    environment:
+      - PORT=3003
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+    ports:
+      - "3003:3003"
+    networks:
+      - paradyze-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/ai-chat/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: paradyze-frontend
+    environment:
+      - PORT=3004
+      - VITE_OPENROUTER_SERVER_URL=http://localhost:3003
+      - VITE_API_ENDPOINT=/api/ai-chat
+      - VITE_INTEGRATION_URL=http://localhost:3006
+      - VITE_API_SERVER_URL=http://localhost:3002
+      - VITE_OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - VITE_OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - VITE_DATABASE_URL=sqlite:/app/data/paradyze.db
+    ports:
+      - "3004:3004"
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./data:/app/data
+    networks:
+      - paradyze-network
+    depends_on:
+      - openrouter-proxy
+      - api-server
+      - integration-api
+
+networks:
+  paradyze-network:
+    driver: bridge

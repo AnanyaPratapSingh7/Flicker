@@ -6,97 +6,45 @@ ParadyzeV2 is a comprehensive cryptocurrency trading agent platform that enables
 
 - **Home Dashboard**: Overview of the platform's features and key metrics
 - **Agent Launchpad**: Create and deploy AI-powered trading agents with customizable strategies
-- **Social Media Integration**: Automatically post trading insights to Twitter/X
+- **Direct Chat and Social Media Integration**: Connect your agents to Discord, Twitter/X, and Telegram
 - **ElizaOS Integration**: Leverage powerful AI character framework for agent personalities
-- **Prediction Market**: Participate in decentralized prediction markets across various categories
-- **Money Market**: Lend, borrow, and earn interest on cryptocurrency assets
 
-### AI-Powered Agent Creation
-
-The platform includes a secure AI-powered agent creation wizard that helps users design and configure their trading agents:
-
-- **Secure OpenRouter API Integration**: All AI requests are proxied through a secure backend endpoint that keeps API keys private
-- **Context-Aware Assistance**: The AI assistant understands the current step in the creation process
-- **Form Field Suggestions**: AI can suggest content for agent configuration fields
-- **Guided Creation Process**: Step-by-step wizard interface with AI guidance at each step
-
-For more information about the AI integration, see:
-- [AI Proxy Usage Guide](docs/ai-proxy-usage.md)
-- [AI Proxy Setup Guide](docs/ai-proxy-setup.md)
+**Note**: Some features are marked as "Coming Soon" in the current version:
+- **Tokenization**: The ability to tokenize agents is marked as a future enhancement
+- **Prediction Market**: Will be available in a future update
+- **Money Market**: Will be available in a future update
 
 ## Technology Stack
 
-- **Frontend**: React, React Router with lazy loading for optimized performance
+- **Frontend**: React, Vite, TailwindCSS
 - **Backend**: Node.js with Express
 - **AI Framework**: ElizaOS for agent management and personality customization
-- **Social Media**: Twitter API integration via OAuth
-- **Database**: Supabase (PostgreSQL)
-- **Styling**: CSS (easily extendable to styled-components or other CSS-in-JS solutions)
+- **Social Media**: Discord, Twitter/X, and Telegram integrations
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **Container Orchestration**: Docker and Docker Compose
+
+## System Architecture
+
+Paradyze v2 consists of several interconnected services:
+
+| Service | Purpose | Port | Dependencies |
+|---------|---------|------|-------------|
+| Frontend | React UI for user interaction | 3000 (browser), 3004 (internal) | OpenRouter Proxy, Integration API, API Server |
+| Integration API | Bridge between frontend and ElizaOS | 3001, 3006 | ElizaOS Main |
+| API Server | API endpoints for agent management | 3002 | Integration API |
+| OpenRouter Proxy | AI API proxy for LLM access | 3003 | None |
+| ElizaOS Main | Core runtime for agent execution | 3000 (locally), 3005 (in Docker), 3007 (proxy) | None |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v23.0.0 or later recommended)
-- pnpm (recommended) or npm
-- OpenAI API key (for ElizaOS)
-- Twitter Developer credentials (for social media integration)
+- Node.js (v18.0.0 or later recommended)
+- npm or pnpm (package manager)
+- Docker and Docker Compose (for containerized setup)
+- OpenRouter API key (for AI model access)
 
-### Installation
-
-1. Clone the repository
-```bash
-git clone https://github.com/yourusername/paradyzev2.git
-cd paradyzev2
-```
-
-2. Set up ElizaOS runtime
-```bash
-# ElizaOS is included as a git submodule
-cd backend/eliza-main
-cp .env.example .env
-# Edit the .env file with your OpenAI API key and other configuration
-```
-
-3. Set up ElizaOS integration service
-```bash
-cd ../eliza-integration
-cp .env.example .env
-pnpm install
-# or npm install
-```
-
-4. Install frontend dependencies
-```bash
-cd ../../  # Back to project root
-pnpm install
-# or npm install
-```
-
-5. Start all services
-```bash
-# In one terminal, start the ElizaOS integration service
-cd backend/eliza-integration
-pnpm dev
-# or npm run dev
-
-# In another terminal, start the frontend
-cd ../..  # Back to project root
-pnpm start
-# or npm start
-```
-
-The application will be available at http://localhost:3000
-
-## Local Development Setup
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Node.js 18+
-- npm or pnpm
-
-### Setup Steps
+### Environment Setup
 
 1. Clone the repository:
    ```bash
@@ -104,126 +52,157 @@ The application will be available at http://localhost:3000
    cd paradyzev2
    ```
 
-2. The project uses the existing .env file in the eliza-main folder:
+2. Set up environment variables:
    ```bash
-   # Verify the .env file exists
-   ls -la backend/eliza-main/.env
+   cp .env.example .env
    ```
    
-   If it doesn't exist, create it:
+   Edit the `.env` file with your OpenRouter API key and other configuration settings:
+   ```
+   # OpenRouter Configuration
+   OPENROUTER_API_KEY=your-openrouter-api-key
+   OPENROUTER_MODEL=openai/gpt-4o-mini
+
+   # Database Configuration
+   DATABASE_URL=sqlite:./data/paradyze.db
+
+   # Application Settings
+   NODE_ENV=development
+
+   # Vite Configuration
+   VITE_SERVER_PROXY_TARGET=http://localhost:3006
+   ```
+
+## Running the Services
+
+### Option 1: Using Docker (Recommended)
+
+The easiest way to run the entire system is using Docker Compose:
+
+1. Make sure Docker and Docker Compose are installed:
    ```bash
-   cp backend/eliza-integration/.env.example backend/eliza-main/.env
+   docker --version
+   docker compose --version
+   ```
+
+2. Make the helper scripts executable:
+   ```bash
+   chmod +x scripts/start.sh scripts/stop.sh scripts/logs.sh
+   ```
+
+3. Start all services:
+   ```bash
+   ./scripts/start.sh
+   ```
+
+4. Verify all services are running:
+   ```bash
+   docker ps
+   ```
+
+5. Check service logs:
+   ```bash
+   ./scripts/logs.sh
    ```
    
-   Edit the .env file to include your OpenRouter API key.
-
-3. Run the setup script:
+   Or view logs for a specific service:
    ```bash
-   chmod +x scripts/setup-local.sh
-   ./scripts/setup-local.sh
+   docker logs -f paradyze-elizaos-main
+   docker logs -f paradyze-integration-api
+   docker logs -f paradyze-api-server
+   docker logs -f paradyze-openrouter-proxy
+   docker logs -f paradyze-frontend
    ```
 
-4. Test an agent deployment:
+6. Access the application at http://localhost:3004
+
+7. To stop all services:
    ```bash
-   chmod +x scripts/test-agent.sh
-   ./scripts/test-agent.sh
+   ./scripts/stop.sh
    ```
 
-### Architecture
+### Option 2: Running Services Manually
 
-The local development environment consists of:
+For development purposes, you may want to run the services individually:
 
-1. **PostgreSQL Database**: Stores user, character, and agent data
-2. **ElizaOS Integration Service**: Manages the interaction with ElizaOS, including starting/stopping the runtime, creating and managing agents
-3. **Agent Manager**: Handles the deployment lifecycle of ElizaOS agent containers
+#### Step 1: Start ElizaOS
 
-### Component Interaction
+```bash
+# Navigate to the ElizaOS directory
+cd elizabuild/eliza
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│                 │     │                 │     │                 │
-│  AgentLaunchpad │────▶│    ElizaOS      │◀───▶│  Agent Manager  │
-│    Frontend     │     │  Integration    │     │                 │
-│                 │     │                 │     │                 │
-└─────────────────┘     └────────┬────────┘     └────────┬────────┘
-                                 │                       │
-                                 ▼                       ▼
-                        ┌─────────────────┐     ┌─────────────────┐
-                        │                 │     │                 │
-                        │   PostgreSQL    │     │  ElizaOS Agent  │
-                        │    Database     │     │   Containers    │
-                        │                 │     │                 │
-                        └─────────────────┘     └─────────────────┘
+# Install dependencies if not already done
+pnpm install
+# or
+npm install
+
+# Start ElizaOS
+pnpm start
+# or
+npm start
 ```
 
-This architecture is designed to be cloud-ready, with each component deployable as a separate service in Google Cloud Run.
-
-### API Documentation
-
-See [api-integration.md](docs/api-integration.md) for details on how to integrate the AgentLaunchpad frontend with the backend services.
-
-### Deployment Strategy
-
-See [deployment-strategy.md](docs/deployment-strategy.md) for details on the deployment strategy for production.
-
-## Project Structure
-
-```
-paradyzev2/
-├── backend/
-│   ├── eliza-main/            # Main ElizaOS repository (cloned)
-│   │   └── characters/        # Agent templates
-│   ├── eliza-integration/     # Integration service
-│   │   ├── ElizaIntegrationService.ts  # Core integration service
-│   │   └── api.ts             # REST API for frontend
-│   └── eliza/                 # Legacy integration components
-│       ├── TwitterService.ts  # Twitter integration service
-│       ├── SupabaseService.ts # Database service
-│       └── server.ts          # API server
-├── docs/                      # Documentation
-│   ├── database.md            # Database schema and design
-│   ├── elizaos-integration.md # Overview of ElizaOS integration
-│   └── elizaos-integration-guide.md # Detailed integration guide
-├── public/                    # Static assets
-├── src/                       # Frontend code
-│   ├── components/
-│   │   ├── AgentLaunchpad/
-│   │   ├── HomeDashboard/
-│   │   ├── MoneyMarket/
-│   │   ├── Navbar/
-│   │   └── PredictionMarket/
-│   ├── App.js                 # Main application with React Router setup
-│   ├── App.css                # Global styles
-│   └── index.js               # Entry point
-├── package.json
-└── README.md
+ElizaOS will run on port 3000. Verify it's running:
+```bash
+curl -v http://localhost:3000/health
 ```
 
-## AI Agent Capabilities
+#### Step 2: Start Integration API
 
-The ElizaOS integration enables sophisticated AI trading agents with:
+```bash
+# Navigate to the integration API directory
+cd backend/eliza-integration
 
-- Customizable personalities and trading strategies
-- Memory of past conversations and market analysis
-- Social media publishing capabilities (Twitter/X)
-- Integration with trading APIs (future enhancement)
+# Install dependencies if not already done
+npm install
 
-## Documentation
+# Start the Integration API
+npx ts-node api.ts
+```
 
-For detailed documentation about specific components:
+The Integration API will run on port 3006.
 
-- [ElizaOS Integration Overview](./docs/elizaos-integration.md)
-- [ElizaOS Integration Guide](./docs/elizaos-integration-guide.md)
-- [Database Schema](./docs/database.md)
+#### Step 3: Start API Server
 
-## Future Enhancements
+```bash
+# Navigate to the API server directory
+cd api-server
 
-- Integration with Web3 wallets
-- Real-time market data connections
-- Trading API integrations
-- Expanded social media platforms
-- Advanced agent capabilities with custom plugins
-- Mobile responsive design improvements
+# Install dependencies if not already done
+npm install
+
+# Start the API server
+node server.js
+```
+
+The API server will run on port 3002.
+
+#### Step 4: Start OpenRouter Proxy
+
+```bash
+# Navigate to the project root
+cd /path/to/paradyzev2
+
+# Run the OpenRouter proxy server
+node local-openrouter-server.js
+```
+
+The OpenRouter proxy will run on port 3003.
+
+#### Step 5: Start Frontend
+
+```bash
+# Navigate to the project root
+cd /path/to/paradyzev2
+
+# Install dependencies if not already done
+npm install
+
+# Start the frontend
+npm run dev
+```
+
+The frontend will be accessible at http://localhost:3000 in your browser.
 
 ## Database Configuration
 
@@ -233,47 +212,90 @@ Paradyze V2 supports two database options:
 
 For development environments, we use SQLite, which is a lightweight, file-based database that requires no additional setup.
 
-To configure SQLite:
+To initialize the SQLite database:
 
 ```bash
 # Initialize SQLite database
 ./scripts/init-sqlite.sh
-
-# Install dependencies
-npm install better-sqlite3 sqlite3 @elizaos/adapter-sqlite --save
 ```
-
-> **Note**: SQLite has limitations for production use, particularly for vector embedding features required by ElizaOS's semantic memory system.
 
 ### PostgreSQL (Production)
 
-For production environments, we use PostgreSQL with the pgvector extension for optimal performance, scalability, and full support for vector embeddings.
+For production environments, PostgreSQL with the pgvector extension is recommended for optimal performance, scalability, and vector embeddings support.
 
-To configure PostgreSQL:
+To initialize a PostgreSQL database:
 
 ```bash
 # Initialize PostgreSQL database
 ./scripts/init-postgres.sh
-
-# Install dependencies
-npm install pg @elizaos/adapter-postgres --save
 ```
 
-#### Vector Embedding Support
+## Troubleshooting
 
-ElizaOS uses vector embeddings for semantic memory retrieval, which requires database support for vector operations. The pgvector extension for PostgreSQL provides:
+### Common Issues
 
-- Efficient storage of embedding vectors
-- Vector similarity search (cosine, Euclidean, dot product)
-- Fast retrieval with approximate nearest neighbor search
+1. **Port Conflicts**: Ensure no other services are running on the required ports (3000-3007)
 
-These capabilities enable key ElizaOS features:
-- Semantic memory retrieval
-- Context-aware conversations
-- Knowledge base search
+2. **ElizaOS Health Check Fails**: 
+   - Check if the ElizaOS service is running: `curl http://localhost:3000/health`
+   - Verify the OPENROUTER_API_KEY is valid in your .env file
 
-For detailed database configuration instructions, see the [ElizaOS Integration Guide](./docs/elizaos-integration-guide.md#database-configuration).
+3. **Integration API Connection Issues**:
+   - Ensure ElizaOS is running and accessible
+   - Check the logs for connection errors: `docker logs -f paradyze-integration-api`
+
+4. **Frontend Can't Connect to Backend Services**:
+   - Verify all backend services are running
+   - Check the VITE_* environment variables in your .env file
+
+For more detailed troubleshooting steps, see [paradyze-system-guide.md](paradyze-system-guide.md).
+
+## Development Workflow
+
+When developing new features or fixing bugs:
+
+1. Start all services using Docker or manually as described above
+2. Make changes to the relevant components
+3. Use the development servers' hot-reloading capabilities
+4. Test your changes thoroughly
+
+## Project Structure
+
+```
+paradyzev2/
+├── api-server/              # API Server for application endpoints
+├── backend/
+│   └── eliza-integration/   # Integration service for ElizaOS
+├── data/                    # Data storage for databases
+├── docker/                  # Dockerfiles for all services
+├── elizabuild/              # ElizaOS runtime
+│   └── eliza/               # ElizaOS core service
+├── public/                  # Static assets
+├── scripts/                 # Utility scripts for setup and maintenance
+├── src/                     # Frontend React application
+│   ├── components/          # UI components
+│   ├── contexts/            # React contexts
+│   └── ...                  # Other application code
+├── docker-compose.yml       # Docker Compose configuration
+├── local-openrouter-server.js # OpenRouter proxy for development
+└── .env                     # Environment configuration
+```
+
+## Documentation
+
+For more detailed documentation, please refer to:
+
+- [System Setup Guide](paradyze-system-guide.md) - Comprehensive instructions for setting up the system
+- [Docker Compose Migration Plan](docker-compose-migration-plan.md) - Details about the Docker container setup
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Commit your changes: `git commit -m 'Add some feature'`
+4. Push to the branch: `git push origin feature/your-feature-name`
+5. Open a pull request
 
 ## License
 
-MIT
+[License information here]
