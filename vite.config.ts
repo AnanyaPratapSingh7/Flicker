@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import viteTsconfigPaths from 'vite-tsconfig-paths';
 import path from 'path';
+import { nodePolyfills } from '@bangjelkoski/vite-plugin-node-polyfills';
 
 // Get proxy target from environment or default to localhost:3006 for Integration API
 const proxyTarget = process.env.VITE_SERVER_PROXY_TARGET || 'http://localhost:3006';
@@ -12,6 +13,7 @@ export default defineConfig({
   plugins: [
     react(),
     viteTsconfigPaths(),
+    nodePolyfills({ protocolImports: true }),
   ],
   server: {
     port: 3004,

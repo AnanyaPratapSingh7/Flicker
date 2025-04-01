@@ -10,6 +10,7 @@
     "@elizaos/core": "^0.25.8",
     "@injectivelabs/exceptions": "^1.14.41",
     "@injectivelabs/ts-types": "^1.14.41",
+    "@injectivelabs/wallet-base": "1.14.49",
     "@injectivelabs/wallet-ts": "^1.14.41",
     "@radix-ui/react-checkbox": "^1.1.4",
     "@radix-ui/react-label": "^2.1.2",
@@ -78,6 +79,7 @@
     ]
   },
   "devDependencies": {
+    "@bangjelkoski/vite-plugin-node-polyfills": "^0.0.2",
     "@testing-library/react": "^16.2.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
@@ -87,5 +89,13 @@
     "vite": "^6.2.0",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.7"
+  },
+  "pnpm": {
+    "overrides": {
+      "@injectivelabs/wallet-ts": "1.14.41",
+      "@injectivelabs/wallet-core": "1.14.49",
+      "@injectivelabs/wallet-base": "1.14.49",
+      "@injectivelabs/wallet-strategy": "1.14.49"
+    }
   }
 }

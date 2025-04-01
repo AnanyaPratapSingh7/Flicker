@@ -1,4 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { ChainId, EthereumChainId } from '@injectivelabs/ts-types';
+import { WalletStrategy } from '@injectivelabs/wallet-strategy';
+import { Wallet } from '@injectivelabs/wallet-base';
+import { getInjectiveAddress } from '@injectivelabs/sdk-ts';
 
 interface WalletContextType {
   isWalletConnected: boolean;
@@ -6,119 +10,84 @@ interface WalletContextType {
   address: string;
   publicKey: string;
   network: string;
-  connectWallet: () => Promise<void>;
+  connectWallet: (walletType: Wallet) => Promise<void>;
   disconnectWallet: () => void;
   formatAddress: (addr: string) => string;
+  walletStrategy: WalletStrategy;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
+const targetChainId = ChainId.Mainnet;
+const ethereumChainId = EthereumChainId.Mainnet;
+const ethereumRpcUrl = import.meta.env.VITE_ETHEREUM_RPC_URL || 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID';
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const [walletStrategy] = useState(() => new WalletStrategy({
+    chainId: targetChainId,
+    strategies: {},
+  }));
+
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [address, setAddress] = useState('');
   const [publicKey, setPublicKey] = useState('');
-  const [network, setNetwork] = useState('injective-888');
+  const [network, setNetwork] = useState(targetChainId);
 
-  const checkKeplrAvailability = async (retries = 10, interval = 500): Promise<boolean> => {
-    for (let i = 0; i < retries; i++) {
-      if (typeof window !== 'undefined' && 'keplr' in window) {
-        return true;
-      }
-      await new Promise(resolve => setTimeout(resolve, interval));
-    }
-    return false;
-  };
-
-  useEffect(() => {
-    const checkWalletConnection = async () => {
-      const savedAddress = localStorage.getItem('walletAddress');
-      if (savedAddress) {
-        const isKeplrAvailable = await checkKeplrAvailability();
-        if (!isKeplrAvailable) {
-          console.log('Keplr not available');
-          return;
-        }
-
-        try {
-          await (window as any).keplr.enable('injective-888');
-          const offlineSigner = (window as any).keplr.getOfflineSigner('injective-888');
-          const accounts = await offlineSigner.getAccounts();
-          const userAddress = accounts[0].address;
-          
-          if (savedAddress === userAddress) {
-            console.log('Wallet reconnected:', userAddress);
-            setAddress(userAddress);
-            setIsWalletConnected(true);
-          } else {
-            console.log('Saved address does not match current account');
-            localStorage.removeItem('walletAddress');
-          }
-        } catch (error) {
-          console.error('Error reconnecting wallet:', error);
-          localStorage.removeItem('walletAddress');
-        }
-      }
-    };
-
-    checkWalletConnection();
-
-    const handleAccountChange = () => {
-      console.log('Keplr account changed');
-      checkWalletConnection();
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('keplr_keystorechange', handleAccountChange);
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('keplr_keystorechange', handleAccountChange);
-      }
-    };
-  }, []);
-
-  const connectWallet = async () => {
+  const connectWallet = async (walletType: Wallet) => {
     try {
       setIsConnecting(true);
-      console.log('Connecting wallet...');
+      console.log(`Connecting wallet via WalletStrategy (${walletType})...`);
 
-      const isKeplrAvailable = await checkKeplrAvailability();
-      if (!isKeplrAvailable) {
-        throw new Error('Please install Keplr extension');
+      walletStrategy.setWallet(walletType);
+
+      const addresses = await walletStrategy.getAddresses();
+
+      if (addresses.length === 0) {
+        throw new Error('No accounts found in the selected wallet.');
       }
 
-      await (window as any).keplr.enable('injective-888');
-      console.log('Keplr enabled');
+      const firstAddress = addresses[0];
+      let injectiveAddress: string;
+      let ethAddress: string | undefined = undefined;
 
-      const offlineSigner = (window as any).keplr.getOfflineSigner('injective-888');
-      const accounts = await offlineSigner.getAccounts();
-      const userAddress = accounts[0].address;
+      if (firstAddress.startsWith('0x')) {
+        injectiveAddress = getInjectiveAddress(firstAddress);
+        ethAddress = firstAddress;
+        console.log(`Connected ETH address: ${ethAddress}, derived INJ address: ${injectiveAddress}`);
+      } else if (firstAddress.startsWith('inj')) {
+        injectiveAddress = firstAddress;
+        console.log(`Connected INJ address: ${injectiveAddress}`);
+      } else {
+        throw new Error('Unrecognized address format received.');
+      }
       
-      // Get the key details from Keplr
-      const key = await (window as any).keplr.getKey('injective-888');
-      const pubKey = key.pubKey;
-      
-      console.log('Connected to address:', userAddress);
-      localStorage.setItem('walletAddress', userAddress);
-      
-      setAddress(userAddress);
-      setPublicKey(Buffer.from(pubKey).toString('base64'));
-      setNetwork('injective-888');
+      let base64PubKey = '';
+      try {
+        base64PubKey = await walletStrategy.getPubKey();
+        console.log('Public key obtained (already base64?):', base64PubKey);
+      } catch (e) {
+        console.warn(`Could not get public key from wallet (${walletType}):`, e);
+      }
+            
+      setAddress(injectiveAddress);
+      setPublicKey(base64PubKey);
+      setNetwork(targetChainId);
       setIsWalletConnected(true);
+
     } catch (error) {
       console.error('Error connecting wallet:', error);
-      localStorage.removeItem('walletAddress');
+      setIsWalletConnected(false);
+      setAddress('');
+      setPublicKey('');
       throw error;
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const disconnectWallet = () => {
+  const disconnectWallet = async () => {
     console.log('Disconnecting wallet');
-    localStorage.removeItem('walletAddress');
     setIsWalletConnected(false);
     setAddress('');
     setPublicKey('');
@@ -140,6 +109,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         connectWallet,
         disconnectWallet,
         formatAddress,
+        walletStrategy: walletStrategy
       }}
     >
       {children}

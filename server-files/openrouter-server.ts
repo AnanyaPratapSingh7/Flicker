@@ -1,9 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const fetch = require('node-fetch');
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import fetch, { RequestInit, Response as FetchResponse } from 'node-fetch';
+import { Stream } from 'stream'; // Import Stream type
 
 const app = express();
-const PORT = process.env.PORT || 3003;
+const PORT: number = parseInt(process.env.PORT || '3003', 10);
 
 // Add CORS middleware
 app.use(cors({
@@ -14,13 +15,13 @@ app.use(cors({
 }));
 
 // Add logging middleware
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
 // Add detailed error handling middleware
-app.use((err, req, res, next) => {
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => { // Explicitly type err as Error
   console.error('Express error:', err);
   res.status(500).json({ error: err.message || 'Internal Server Error' });
 });
@@ -28,31 +29,39 @@ app.use((err, req, res, next) => {
 app.use(express.json());
 
 // Health check endpoint
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   res.send('OpenRouter Proxy is running');
 });
 
 // Ping endpoint for health checks
-app.get('/api/ai-chat/ping', (req, res) => {
+app.get('/api/ai-chat/ping', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'OpenRouter Proxy', timestamp: new Date().toISOString() });
 });
 
 // Frontend ping endpoint
-app.get('/api/chat/ai-chat/ping', (req, res) => {
+app.get('/api/chat/ai-chat/ping', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'OpenRouter Proxy', timestamp: new Date().toISOString() });
 });
 
+// Define an interface for the expected request body structure
+interface ChatRequestBody {
+  stream?: boolean;
+  // Add other expected properties from req.body here if known
+  // e.g., messages: Array<{ role: string; content: string }>;
+}
+
 // Frontend chat endpoint - /api/chat/ai-chat
-app.post('/api/chat/ai-chat', async (req, res) => {
+app.post('/api/chat/ai-chat', async (req: Request<{}, {}, ChatRequestBody>, res: Response) => { // Type req.body
   console.log('Frontend chat request received');
   try {
     // Forward the request to our API server
-    const apiServerUrl = 'http://api-server:3002/api/proxy/ai-chat';
+    const apiServerUrl: string = 'http://api-server:3002/api/proxy/ai-chat';
     const { stream } = req.body;
 
     console.log(`Forwarding to API server: ${apiServerUrl} (stream=${!!stream})`);
 
-    const fetchOptions = {
+    // Explicitly type fetchOptions
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -65,11 +74,11 @@ app.post('/api/chat/ai-chat', async (req, res) => {
     // Log the request body for debugging
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     
-    const fetchResponse = await fetch(apiServerUrl, fetchOptions);
+    const fetchResponse: FetchResponse = await fetch(apiServerUrl, fetchOptions);
 
     if (!fetchResponse.ok) {
       console.error(`API server error: ${fetchResponse.status} ${fetchResponse.statusText}`);
-      const errorText = await fetchResponse.text();
+      const errorText: string = await fetchResponse.text();
       console.error('Error response body:', errorText);
       throw new Error(`API server error: ${fetchResponse.status} - ${errorText || fetchResponse.statusText}`);
     }
@@ -89,22 +98,25 @@ app.post('/api/chat/ai-chat', async (req, res) => {
       // Directly pipe the response to the client
       console.log('Streaming response started - directly piping');
       
+      // Type the body as NodeJS.ReadableStream or appropriate stream type
+      const responseBody = fetchResponse.body as unknown as NodeJS.ReadableStream;
+      
       // Create manual piping with error handling
-      fetchResponse.body.on('data', chunk => {
+      responseBody.on('data', (chunk: Buffer | string) => { // Type chunk
         console.log(`Forwarding chunk of ${chunk.length} bytes`);
         if (!res.writableEnded) {
           res.write(chunk);
         }
       });
       
-      fetchResponse.body.on('end', () => {
+      responseBody.on('end', () => {
         console.log('API server stream ended');
         if (!res.writableEnded) {
           res.end();
         }
       });
       
-      fetchResponse.body.on('error', err => {
+      responseBody.on('error', (err: Error) => { // Type err
         console.error('Error in API server stream:', err);
         if (!res.writableEnded) {
           res.end();
@@ -114,20 +126,24 @@ app.post('/api/chat/ai-chat', async (req, res) => {
       // Handle client disconnection
       req.on('close', () => {
         console.log('Client disconnected, handling cleanup');
-        // The response will be automatically ended when the pipe is closed
+        // Consider explicitly destroying the source stream if needed
+        if (responseBody && typeof (responseBody as any).destroy === 'function') {
+          (responseBody as any).destroy();
+        }
       });
       
       return; // Return early as we're handling the response manually
     } else {
       // Handle regular responses
-      const data = await fetchResponse.json();
+      const data: any = await fetchResponse.json(); // Use any or define a more specific type
       res.json(data);
       console.log('Regular response sent');
     }
-  } catch (error) {
+  } catch (error: unknown) { // Type caught error as unknown
     console.error('Error processing chat request:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     if (!res.headersSent) {
-      res.status(500).json({ error: error.message || 'Unknown error' });
+      res.status(500).json({ error: errorMessage });
     } else if (!res.writableEnded) {
       res.end();
     }
@@ -135,14 +151,14 @@ app.post('/api/chat/ai-chat', async (req, res) => {
 });
 
 // Legacy endpoint - /api/ai-chat
-app.post('/api/ai-chat', async (req, res) => {
+app.post('/api/ai-chat', async (req: Request<{}, {}, ChatRequestBody>, res: Response) => { // Type req.body
   console.log('Legacy chat request received');
   try {
     // Forward the request to our API server
-    const apiServerUrl = 'http://api-server:3002/api/proxy/ai-chat';
+    const apiServerUrl: string = 'http://api-server:3002/api/proxy/ai-chat';
     const { stream } = req.body;
 
-    const fetchResponse = await fetch(apiServerUrl, {
+    const fetchResponse: FetchResponse = await fetch(apiServerUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -160,22 +176,48 @@ app.post('/api/ai-chat', async (req, res) => {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       
-      fetchResponse.body.pipe(res);
+      // Type the body and pipe
+      const responseBody = fetchResponse.body as unknown as NodeJS.ReadableStream;
+      responseBody.pipe(res);
+      
+      // Handle errors during piping
+      responseBody.on('error', (err: Error) => {
+        console.error('Error piping legacy stream:', err);
+        if (!res.writableEnded) {
+          res.end();
+        }
+      });
+
+      req.on('close', () => {
+        console.log('Client disconnected from legacy endpoint');
+        if (responseBody && typeof (responseBody as any).destroy === 'function') {
+          (responseBody as any).destroy();
+        }
+      });
+
     } else {
-      const data = await fetchResponse.json();
+      const data: any = await fetchResponse.json(); // Use any or define a more specific type
       res.json(data);
     }
-  } catch (error) {
+  } catch (error: unknown) { // Type caught error as unknown
     console.error('Error processing legacy chat request:', error);
-    res.status(500).json({ error: error.message });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Avoid setting status/json if headers already sent (e.g., during streaming error)
+    if (!res.headersSent) {
+       res.status(500).json({ error: errorMessage });
+    } else if (!res.writableEnded) {
+       // If headers sent but stream errored, just end the response
+       res.end();
+    }
   }
 });
 
 // Test endpoint for API server - self responds without forwarding
-app.post('/api/proxy/ai-chat', (req, res) => {
+app.post('/api/proxy/ai-chat', (req: Request, res: Response) => {
   console.log('Test endpoint called');
   
   // Return a fixed response for testing
+  // Define a type for the response structure if possible
   res.json({
     id: 'test-' + Date.now(),
     object: 'chat.completion',
