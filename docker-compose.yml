@@ -18,7 +18,7 @@ services:
       - ./data:/data
       - ./tokenizers:/app/tokenizers
     networks:
-      - paradyze-network
+      - flicker-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 10s
@@ -44,7 +44,7 @@ services:
     volumes:
       - ./data:/app/data
     networks:
-      - paradyze-network
+      - flicker-network
     depends_on:
       elizaos-main:
         condition: service_healthy
@@ -72,7 +72,7 @@ services:
       - ./api-server:/app/api-server
       - ./data:/app/data
     networks:
-      - paradyze-network
+      - flicker-network
     command: ["node", "api-server/server.js"]
     #depends_on:
     #  integration-api:
@@ -96,7 +96,7 @@ services:
     ports:
       - "3003:3003"
     networks:
-      - paradyze-network
+      - flicker-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/ai-chat/ping"]
       interval: 10s
@@ -127,12 +127,12 @@ services:
       - ./vite.config.ts:/app/vite.config.ts
       - ./data:/app/data
     networks:
-      - paradyze-network
+      - flicker-network
     depends_on:
       - openrouter-proxy
       - api-server
       - integration-api
 
 networks:
-  paradyze-network:
+  flicker-network:
     driver: bridge
