@@ -2,7 +2,7 @@ services:
   # ElizaOS Main Runtime
   elizaos-main:
     image: eliza:latest
-    container_name: paradyze-elizaos-main
+    container_name: flicker-elizaos-main
     environment:
       - ELIZAOS_PORT=3000
       - ELIZAOS_MODE=development
@@ -18,7 +18,7 @@ services:
       - ./data:/data
       - ./tokenizers:/app/tokenizers
     networks:
-      - paradyze-network
+      - flicker-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 10s
@@ -31,20 +31,20 @@ services:
     build:
       context: .
       dockerfile: docker/integration-api/Dockerfile
-    container_name: paradyze-integration-api
+    container_name: flicker-integration-api
     environment:
       - INTEGRATION_PORT=3006
       - ELIZA_API_URL=http://elizaos-main:3000
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL}
-      - DATABASE_URL=sqlite:/app/data/paradyze.db
+      - DATABASE_URL=sqlite:/app/data/flicker.db
       - ELIZAOS_INTEGRATION_MODE=api
     ports:
       - "3006:3006"
     volumes:
       - ./data:/app/data
     networks:
-      - paradyze-network
+      - flicker-network
     depends_on:
       elizaos-main:
         condition: service_healthy
@@ -59,10 +59,10 @@ services:
     build:
       context: .
       dockerfile: docker/api-server/Dockerfile
-    container_name: paradyze-api-server
+    container_name: flicker-api-server
     environment:
       - API_PORT=3002
-      - DATABASE_URL=sqlite:/app/data/paradyze.db
+      - DATABASE_URL=sqlite:/app/data/flicker.db
       #- INTEGRATION_URL=http://integration-api:3001
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL}
@@ -72,7 +72,7 @@ services:
       - ./api-server:/app/api-server
       - ./data:/app/data
     networks:
-      - paradyze-network
+      - flicker-network
     command: ["node", "api-server/server.js"]
     #depends_on:
     #  integration-api:
@@ -88,7 +88,7 @@ services:
     build:
       context: .
       dockerfile: docker/openrouter-proxy/Dockerfile
-    container_name: paradyze-openrouter-proxy
+    container_name: flicker-openrouter-proxy
     environment:
       - PORT=3003
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -96,7 +96,7 @@ services:
     ports:
       - "3003:3003"
     networks:
-      - paradyze-network
+      - flicker-network
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3003/api/ai-chat/ping"]
       interval: 10s
@@ -108,7 +108,7 @@ services:
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
-    container_name: paradyze-frontend
+    container_name: flicker-frontend
     environment:
       - PORT=3004
       - VITE_OPENROUTER_SERVER_URL=http://localhost:3003
@@ -117,7 +117,7 @@ services:
       - VITE_API_SERVER_URL=http://localhost:3002
       - VITE_OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - VITE_OPENROUTER_MODEL=${OPENROUTER_MODEL}
-      - VITE_DATABASE_URL=sqlite:/app/data/paradyze.db
+      - VITE_DATABASE_URL=sqlite:/app/data/flicker.db
     ports:
       - "3004:3004"
     volumes:
@@ -127,12 +127,12 @@ services:
       - ./vite.config.ts:/app/vite.config.ts
       - ./data:/app/data
     networks:
-      - paradyze-network
+      - flicker-network
     depends_on:
       - openrouter-proxy
       - api-server
       - integration-api
 
 networks:
-  paradyze-network:
+  flicker-network:
     driver: bridge
