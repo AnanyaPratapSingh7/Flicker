@@ -1,4 +1,4 @@
-# [name]
+# Flicker
 
 [Name] is a feature-rich cryptocurrency trading agent platform that lets users design and run trading agents driven by AI. It provides a smooth experience for users to design, modify, and implement intelligent trading assistants thanks to its React architecture and ElizaOS integration.
 ## Features
