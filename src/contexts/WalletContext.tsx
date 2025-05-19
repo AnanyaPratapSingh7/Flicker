@@ -1,8 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { ChainId, EthereumChainId } from '@injectivelabs/ts-types';
-import { WalletStrategy } from '@injectivelabs/wallet-strategy';
-import { Wallet } from '@injectivelabs/wallet-base';
-import { getInjectiveAddress } from '@injectivelabs/sdk-ts';
+import React, { createContext, useContext, useState } from 'react';
+import { OKXChainId } from '../api/okx/types';
+
+// Wallet types supported by OKX
+export enum OKXWallet {
+  METAMASK = 'metamask',
+  WALLETCONNECT = 'walletconnect',
+  COINBASE = 'coinbase',
+  OKX = 'okx'
+}
 
 interface WalletContextType {
   isWalletConnected: boolean;
@@ -10,70 +15,57 @@ interface WalletContextType {
   address: string;
   publicKey: string;
   network: string;
-  connectWallet: (walletType: Wallet) => Promise<void>;
+  connectWallet: (walletType: OKXWallet) => Promise<void>;
   disconnectWallet: () => void;
   formatAddress: (addr: string) => string;
-  walletStrategy: WalletStrategy;
+  selectedChain: string;
+  setSelectedChain: (chainId: string) => void;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const targetChainId = ChainId.Mainnet;
-const ethereumChainId = EthereumChainId.Mainnet;
-const ethereumRpcUrl = import.meta.env.VITE_ETHEREUM_RPC_URL || 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID';
+// Default to Ethereum
+const defaultChainId = OKXChainId.ETHEREUM;
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [walletStrategy] = useState(() => new WalletStrategy({
-    chainId: targetChainId,
-    strategies: {},
-  }));
-
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [address, setAddress] = useState('');
   const [publicKey, setPublicKey] = useState('');
-  const [network, setNetwork] = useState(targetChainId);
+  const [network, setNetwork] = useState(defaultChainId);
+  const [selectedChain, setSelectedChain] = useState(defaultChainId);
 
-  const connectWallet = async (walletType: Wallet) => {
+  const connectWallet = async (walletType: OKXWallet) => {
     try {
       setIsConnecting(true);
-      console.log(`Connecting wallet via WalletStrategy (${walletType})...`);
+      console.log(`Connecting wallet via ${walletType}...`);
 
-      walletStrategy.setWallet(walletType);
-
-      const addresses = await walletStrategy.getAddresses();
-
-      if (addresses.length === 0) {
-        throw new Error('No accounts found in the selected wallet.');
-      }
-
-      const firstAddress = addresses[0];
-      let injectiveAddress: string;
-      let ethAddress: string | undefined = undefined;
-
-      if (firstAddress.startsWith('0x')) {
-        injectiveAddress = getInjectiveAddress(firstAddress);
-        ethAddress = firstAddress;
-        console.log(`Connected ETH address: ${ethAddress}, derived INJ address: ${injectiveAddress}`);
-      } else if (firstAddress.startsWith('inj')) {
-        injectiveAddress = firstAddress;
-        console.log(`Connected INJ address: ${injectiveAddress}`);
+      // This is a placeholder for actual wallet connection logic
+      // In a real implementation, you would use OKX wallet libraries
+      
+      // Simulate wallet connection
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock address format based on wallet type and selected chain
+      let mockAddress = '';
+      
+      if (selectedChain === OKXChainId.ETHEREUM || selectedChain === OKXChainId.BSC || selectedChain === OKXChainId.AVALANCHE) {
+        mockAddress = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
+      } else if (selectedChain === OKXChainId.SOLANA) {
+        mockAddress = 'HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH';
       } else {
-        throw new Error('Unrecognized address format received.');
+        mockAddress = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
       }
       
-      let base64PubKey = '';
-      try {
-        base64PubKey = await walletStrategy.getPubKey();
-        console.log('Public key obtained (already base64?):', base64PubKey);
-      } catch (e) {
-        console.warn(`Could not get public key from wallet (${walletType}):`, e);
-      }
+      // Mock public key (base64 encoded)
+      const mockPublicKey = 'A9Nmhpt1UrHaJvfYxKcGBmw7xU4PgvcCdCY1VtBSgLYj';
             
-      setAddress(injectiveAddress);
-      setPublicKey(base64PubKey);
-      setNetwork(targetChainId);
+      setAddress(mockAddress);
+      setPublicKey(mockPublicKey);
+      setNetwork(selectedChain);
       setIsWalletConnected(true);
+
+      console.log(`Connected to wallet with address: ${mockAddress} on chain: ${selectedChain}`);
 
     } catch (error) {
       console.error('Error connecting wallet:', error);
@@ -109,7 +101,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         connectWallet,
         disconnectWallet,
         formatAddress,
-        walletStrategy: walletStrategy
+        selectedChain,
+        setSelectedChain
       }}
     >
       {children}

@@ -46,7 +46,7 @@ Paradyze2 will serve as a central hub for diverse crypto financial modules, allo
 - **Module Overview:** Summarize activity from all modules (e.g., active agents, ongoing presales).
 
 #### Agent Launchpad
-- **Agent Creation:** Allow users to create an agent using the Eliza Framework with an Injective Plugin.
+- **Agent Creation:** Allow users to create an agent using the Eliza Framework with an OKX Plugin.
 - **Customization:** Enable users to describe the bot's characteristics.
 - **Social Integration:** Option to connect a Twitter account for automated posting.
 - **Tokenization & Presale:** Option to tokenize the agent and initiate a presale.
@@ -63,10 +63,10 @@ The agent creation interface provides a streamlined user experience with:
 #### Prediction Market
 - **Market Creation:** Let users participate in or create prediction markets.
 - **Oracle Integration:** Use an integrated oracle to fetch real-world data.
-- **Injective Exchange:** Connect with the Injective Exchange module for market operations.
+- **OKX DEX:** Connect with the OKX DEX module for market operations.
 
 #### Money Market
-- **Lending & Borrowing:** Support for lending and borrowing major Injective tokens.
+- **Lending & Borrowing:** Support for lending and borrowing major OKX tokens.
 - **Financial Operations:** Manage interest rates and transaction flows efficiently.
 
 #### Future Module: Market Screener/Aggregator
@@ -96,7 +96,7 @@ The agent creation interface provides a streamlined user experience with:
 - **Languages:** 
   - Most modules in TypeScript.
   - Agent Launchpad module in Python.
-- **Integrations:** Injective SDK for crypto functionalities and Cosmos smart contracts.
+- **Integrations:** OKX DEX API for crypto functionalities and multi-chain smart contracts.
 - **API Integration:** REST/GraphQL or similar interfaces to allow secure communication between frontend and backend modules.
 
 ### 4.3 Codebase Organization

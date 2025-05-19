@@ -43,8 +43,8 @@ Paradyze2 is designed as a modular, single-page application (SPA) that aggregate
   - **Flask / FastAPI**: Framework options for creating Python-based microservices.
 
 ### 3.2 Blockchain & Crypto Integration
-- **Injective SDK**: For interacting with the Injective Exchange and other crypto functionalities.
-- **Cosmos SDK & Smart Contracts**: To handle blockchain interactions with Cosmos-based assets.
+- **OKX DEX API**: For interacting with the OKX Exchange and other crypto functionalities.
+- **Multi-Chain Support**: To handle blockchain interactions with Ethereum, BSC, Solana, and Avalanche assets.
 - **Chain Abstraction Layer**: Custom implementations or third-party libraries for seamless cross-chain integration.
 
 ### 3.3 Data Storage & Caching

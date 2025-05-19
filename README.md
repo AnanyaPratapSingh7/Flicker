@@ -1,39 +1,28 @@
-# ParadyzeV2 - AI Trading Agent Platform
+# [name]
 
-ParadyzeV2 is a comprehensive cryptocurrency trading agent platform that enables users to create and manage AI-powered trading agents. Built with React and integrated with ElizaOS, it offers a seamless experience for users to create, customize, and deploy intelligent trading assistants.
-
+[Name] is a feature-rich cryptocurrency trading agent platform that lets users design and run trading agents driven by AI. It provides a smooth experience for users to design, modify, and implement intelligent trading assistants thanks to its React architecture and ElizaOS integration.
 ## Features
 
-- **Home Dashboard**: Overview of the platform's features and key metrics
-- **Agent Launchpad**: Create and deploy AI-powered trading agents with customizable strategies
-- **Direct Chat and Social Media Integration**: Connect your agents to Discord, Twitter/X, and Telegram
+- **Home Dashboard**: Overview of your portfolio and metrics
+- **Agentic Launchpad**: Create AI-powered trading agents with customizable strategies.
+- **Automatic Trading**: Use of *OKX*'s API in order to make trades as well as fetch the market data and make decisions. 
+- **Direct Chat and Social Media Integration**: Connect your agents to Discord, Twitter/X, and Telegram with fluid integrations of ElizaOS
 - **ElizaOS Integration**: Leverage powerful AI character framework for agent personalities
 
 **Note**: Some features are marked as "Coming Soon" in the current version:
 - **Tokenization**: The ability to tokenize agents is marked as a future enhancement
-- **Prediction Market**: Will be available in a future update
-- **Money Market**: Will be available in a future update
+- **Prediction Market**: Will be available in a future update( Will use ICT Strategy)
 
 ## Technology Stack
 
+- **Trading**: *OKX* for executing trades and fetching market data
 - **Frontend**: React, Vite, TailwindCSS
 - **Backend**: Node.js with Express
 - **AI Framework**: ElizaOS for agent management and personality customization
-- **Social Media**: Discord, Twitter/X, and Telegram integrations
-- **Database**: SQLite (development) / PostgreSQL (production)
-- **Container Orchestration**: Docker and Docker Compose
+- **Social Media**: Discord, Twitter/X, and Telegram integrations via API
+- **Database**: SQLite
+- **Container Orchestration**: Docker
 
-## System Architecture
-
-Paradyze v2 consists of several interconnected services:
-
-| Service | Purpose | Port | Dependencies |
-|---------|---------|------|-------------|
-| Frontend | React UI for user interaction | 3000 (browser), 3004 (internal) | OpenRouter Proxy, Integration API, API Server |
-| Integration API | Bridge between frontend and ElizaOS | 3001, 3006 | ElizaOS Main |
-| API Server | API endpoints for agent management | 3002 | Integration API |
-| OpenRouter Proxy | AI API proxy for LLM access | 3003 | None |
-| ElizaOS Main | Core runtime for agent execution | 3000 (locally), 3005 (in Docker), 3007 (proxy) | None |
 
 ## Getting Started
 
@@ -43,13 +32,14 @@ Paradyze v2 consists of several interconnected services:
 - npm or pnpm (package manager)
 - Docker and Docker Compose (for containerized setup)
 - OpenRouter API key (for AI model access)
+- OKX APi key (with read, write, and trade access)
 
 ### Environment Setup
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/paradyzev2.git
-   cd paradyzev2
+   git clone [repolink]
+   cd [name]
    ```
 
 2. Set up environment variables:
@@ -57,21 +47,60 @@ Paradyze v2 consists of several interconnected services:
    cp .env.example .env
    ```
    
-   Edit the `.env` file with your OpenRouter API key and other configuration settings:
+   Edit the `.env` file with your OKX API key and other configuration settings:
    ```
-   # OpenRouter Configuration
-   OPENROUTER_API_KEY=your-openrouter-api-key
+   # OKX API Configuration
+   OKX_API_KEY=your_api_key_here
+   OKX_API_SECRET=your_api_secret_here
+
+   # OpenRouter API Configuration
+   OPENROUTER_API_KEY=your_api_key_here
    OPENROUTER_MODEL=openai/gpt-4o-mini
 
-   # Database Configuration
-   DATABASE_URL=sqlite:./data/paradyze.db
+   # Server Configuration
+   # Local server port for OpenRouter proxy (default: 3005)
+   PORT=3005
+   # Frontend URL for CORS config
+   APP_URL=http://localhost:5173
 
-   # Application Settings
+   # Environment
    NODE_ENV=development
 
-   # Vite Configuration
-   VITE_SERVER_PROXY_TARGET=http://localhost:3006
+   # Frontend Configuration
+   # API Endpoint path (relative to frontend URL)
+   VITE_API_ENDPOINT=/api/proxy/ai-chat
+   # Absolute URL to OpenRouter server (for direct connection)
+   VITE_OPENROUTER_SERVER_URL=http://localhost:3005
+
+   # Debugging
+   DEBUG_LEVEL=info  # Options: error, warn, info, debug, verbose
+
    ```
+
+## System Architecture
+We are mainly using three key APIs from OKX
+1. Swap: /api/v5/dex/aggregate/swap
+2. Orders: /api/v5/dex/spot/order
+3. Balances: /api/v5/dex/account/balances
+
+These APIs will provide the core functionality to the agents i.e. executing profitable trades and keeping records
+
+Here's an overview of a trade flow `NLP Input → Chain Validation → OKX Liquidity Check → Transaction Signing
+`
+### Example FLow
+
+User input: "Bridge 100 USDC from Ethereum to Solana and swap to BONK"
+Expected actions:
+
+Parse chain/token/amount
+
+Check OKX cross-chain liquidity
+
+Execute bridge via OKX API
+
+Perform swap on Solana DEX
+
+Return composite TX hash
 
 ## Running the Services
 
@@ -206,28 +235,15 @@ The frontend will be accessible at http://localhost:3000 in your browser.
 
 ## Database Configuration
 
-Paradyze V2 supports two database options:
+### SQLite
 
-### SQLite (Development)
-
-For development environments, we use SQLite, which is a lightweight, file-based database that requires no additional setup.
+We use SQLite, which is a lightweight, file-based database that requires no additional setup.
 
 To initialize the SQLite database:
 
 ```bash
 # Initialize SQLite database
 ./scripts/init-sqlite.sh
-```
-
-### PostgreSQL (Production)
-
-For production environments, PostgreSQL with the pgvector extension is recommended for optimal performance, scalability, and vector embeddings support.
-
-To initialize a PostgreSQL database:
-
-```bash
-# Initialize PostgreSQL database
-./scripts/init-postgres.sh
 ```
 
 ## Troubleshooting
@@ -248,7 +264,6 @@ To initialize a PostgreSQL database:
    - Verify all backend services are running
    - Check the VITE_* environment variables in your .env file
 
-For more detailed troubleshooting steps, see [paradyze-system-guide.md](paradyze-system-guide.md).
 
 ## Development Workflow
 
@@ -262,7 +277,7 @@ When developing new features or fixing bugs:
 ## Project Structure
 
 ```
-paradyzev2/
+[name]/
 ├── api-server/              # API Server for application endpoints
 ├── backend/
 │   └── eliza-integration/   # Integration service for ElizaOS
@@ -281,13 +296,6 @@ paradyzev2/
 └── .env                     # Environment configuration
 ```
 
-## Documentation
-
-For more detailed documentation, please refer to:
-
-- [System Setup Guide](paradyze-system-guide.md) - Comprehensive instructions for setting up the system
-- [Docker Compose Migration Plan](docker-compose-migration-plan.md) - Details about the Docker container setup
-
 ## Contributing
 
 1. Fork the repository
@@ -296,6 +304,3 @@ For more detailed documentation, please refer to:
 4. Push to the branch: `git push origin feature/your-feature-name`
 5. Open a pull request
 
-## License
-
-[License information here]

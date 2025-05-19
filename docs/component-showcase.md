@@ -505,7 +505,7 @@ export function AlertExample() {
       <Info className="h-4 w-4" />
       <AlertTitle>Information</AlertTitle>
       <AlertDescription>
-        This transaction will be processed on the Injective blockchain.
+        This transaction will be processed on the OKX blockchain.
       </AlertDescription>
     </Alert>
   );
